@@ -1,0 +1,13 @@
+frontend/node_modules
+frontend/.next
+backend/target
+backend/backend-storage
+backend-storage
+python/.venv
+python/__pycache__
+python/.pytest_cache
+python/storage
+design-index.html
+design-index.decoded.html
+pdf-chat-agent/
+.DS_Store

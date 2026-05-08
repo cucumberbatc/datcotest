@@ -1,0 +1,20 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+fastapi = "<1.0,>=0.115"
+python-multipart = "<1.0,>=0.0.9"
+pydantic-settings = "<3.0,>=2.3"
+langchain = "<0.4,>=0.3"
+langchain-openai = "<0.4,>=0.2"
+langchain-community = "<0.4,>=0.3"
+faiss-cpu = "<2.0,>=1.8"
+pymupdf = "<2.0,>=1.24"
+uvicorn = {extras = ["standard"], version = "<1.0,>=0.30"}
+
+[dev-packages]
+
+[requires]
+python_version = "3.10"
