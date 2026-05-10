@@ -356,6 +356,38 @@ def build_highlighted_pdf(
 
     return output_pdf
 
+
+def get_page_size(source_pdf: Path, page_number: int) -> tuple[float, float]:
+    with fitz.open(source_pdf) as pdf:
+        if page_number < 1 or page_number > pdf.page_count:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Page not found.")
+
+        page = pdf.load_page(page_number - 1)
+        rect = page.rect
+        return float(rect.width), float(rect.height)
+
+
+def render_page_image(
+    source_pdf: Path,
+    output_png: Path,
+    page_number: int,
+    zoom: float = 2.0,
+) -> Path:
+    output_png.parent.mkdir(parents=True, exist_ok=True)
+    if output_png.exists():
+        return output_png
+
+    with fitz.open(source_pdf) as pdf:
+        if page_number < 1 or page_number > pdf.page_count:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Page not found.")
+
+        page = pdf.load_page(page_number - 1)
+        matrix = fitz.Matrix(zoom, zoom)
+        pixmap = page.get_pixmap(matrix=matrix, alpha=False)
+        pixmap.save(output_png)
+
+    return output_png
+
 def _merge_short_paragraphs(
     paragraphs: list[ExtractedParagraph],
 ) -> list[ExtractedParagraph]:

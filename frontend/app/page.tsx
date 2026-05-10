@@ -45,6 +45,28 @@ type AskResponse = {
   elapsedMs: number;
 };
 
+type PdfRect = {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+};
+
+type PageMetadata = {
+  documentId: string;
+  pageNumber: number;
+  width: number;
+  height: number;
+  imageUrl: string;
+};
+
+type HighlightMetadata = {
+  documentId: string;
+  chunkId: string;
+  pageNumber: number;
+  rects: PdfRect[];
+};
+
 type DebugRetrieveHit = {
   rank: number;
   score: number;
@@ -869,8 +891,13 @@ function ViewerPane({
   document: DocumentDetail;
   selectedSource: Source | null;
 }) {
-  const [zoom, setZoom] = useState(100);
+  const imgRef = useRef<HTMLImageElement | null>(null);
+  const [imageZoom, setImageZoom] = useState(100);
   const [currentPage, setCurrentPage] = useState(1);
+  const [pageMetadata, setPageMetadata] = useState<PageMetadata | null>(null);
+  const [highlightMetadata, setHighlightMetadata] = useState<HighlightMetadata | null>(null);
+  const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
+  const [viewerError, setViewerError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!selectedSource || selectedSource.documentId !== document.id) {
@@ -884,13 +911,102 @@ function ViewerPane({
     setCurrentPage((page) => Math.min(Math.max(page, 1), document.pageCount));
   }, [document.pageCount]);
 
-  const page = document.pages.find((item) => item.pageNumber === currentPage) ?? document.pages[0];
-  const isActiveSourcePage = selectedSource?.documentId === document.id && selectedSource.pageNumber === page.pageNumber;
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadPageMetadata() {
+      setViewerError(null);
+      const response = await fetch(`${API_BASE}/documents/${document.id}/pages/${currentPage}/metadata`, {
+        cache: "no-store"
+      });
+      if (!response.ok) {
+        throw new Error("페이지 이미지를 불러오지 못했습니다.");
+      }
+
+      const payload = (await response.json()) as PageMetadata;
+      if (!ignore) {
+        setPageMetadata(payload);
+        setImageSize({ width: 0, height: 0 });
+      }
+    }
+
+    void loadPageMetadata().catch((error) => {
+      if (!ignore) {
+        setViewerError(error instanceof Error ? error.message : "페이지 이미지를 불러오지 못했습니다.");
+        setPageMetadata(null);
+      }
+    });
+
+    return () => {
+      ignore = true;
+    };
+  }, [currentPage, document.id]);
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadHighlightMetadata() {
+      if (!selectedSource?.chunkId || selectedSource.documentId !== document.id || selectedSource.pageNumber !== currentPage) {
+        setHighlightMetadata(null);
+        return;
+      }
+
+      const params = new URLSearchParams({
+        paragraphStart: String(selectedSource.paragraphIndex),
+        paragraphEnd: String(selectedSource.paragraphEndIndex)
+      });
+      const response = await fetch(
+        `${API_BASE}/documents/${document.id}/chunks/${selectedSource.chunkId}/highlight?${params.toString()}`,
+        { cache: "no-store" }
+      );
+      if (!response.ok) {
+        throw new Error("하이라이트 좌표를 불러오지 못했습니다.");
+      }
+
+      const payload = (await response.json()) as HighlightMetadata;
+      if (!ignore) {
+        setHighlightMetadata(payload);
+      }
+    }
+
+    void loadHighlightMetadata().catch((error) => {
+      if (!ignore) {
+        setViewerError(error instanceof Error ? error.message : "하이라이트 좌표를 불러오지 못했습니다.");
+        setHighlightMetadata(null);
+      }
+    });
+
+    return () => {
+      ignore = true;
+    };
+  }, [currentPage, document.id, selectedSource]);
+
+  useEffect(() => {
+    if (!imgRef.current) {
+      return;
+    }
+
+    const image = imgRef.current;
+    const updateImageSize = () => {
+      setImageSize({
+        width: image.clientWidth,
+        height: image.clientHeight
+      });
+    };
+
+    updateImageSize();
+    const observer = new ResizeObserver(updateImageSize);
+    observer.observe(image);
+    return () => observer.disconnect();
+  }, [pageMetadata, imageZoom]);
+
+  const isActiveSourcePage = selectedSource?.documentId === document.id && selectedSource.pageNumber === currentPage;
   const canGoPrev = currentPage > 1;
   const canGoNext = currentPage < document.pageCount;
-  const pageTextStyle = {
-    "--page-text-scale": zoom / 100
-  } as CSSProperties;
+  const scaleX = pageMetadata && imageSize.width > 0 ? imageSize.width / pageMetadata.width : 0;
+  const scaleY = pageMetadata && imageSize.height > 0 ? imageSize.height / pageMetadata.height : 0;
+  const highlightRects = isActiveSourcePage ? highlightMetadata?.rects ?? [] : [];
+  const pageImageUrl = pageMetadata ? apiUrl(pageMetadata.imageUrl) : null;
 
   function goToPrevPage() {
     setCurrentPage((pageNumber) => Math.max(1, pageNumber - 1));
@@ -900,16 +1016,27 @@ function ViewerPane({
     setCurrentPage((pageNumber) => Math.min(document.pageCount, pageNumber + 1));
   }
 
+  function zoomOut() {
+    setImageZoom((current) => Math.max(50, current - 10));
+  }
+
+  function zoomIn() {
+    setImageZoom((current) => Math.min(220, current + 10));
+  }
+
   return (
     <>
       <div className="viewer-toolbar">
         <div className="viewer-toolbar-group">
-          <button className="icon-btn" onClick={() => setZoom((current) => Math.max(70, current - 10))} type="button">
+          <button className="icon-btn" onClick={zoomOut} type="button">
             -
           </button>
-          <span>{zoom}%</span>
-          <button className="icon-btn" onClick={() => setZoom((current) => Math.min(150, current + 10))} type="button">
+          <span>{imageZoom}%</span>
+          <button className="icon-btn" onClick={zoomIn} type="button">
             +
+          </button>
+          <button className="btn btn-ghost viewer-fit-btn" onClick={() => setImageZoom(100)} type="button">
+            Fit
           </button>
         </div>
       </div>
@@ -927,25 +1054,45 @@ function ViewerPane({
           </button>
 
           <div className="viewer-page-shell">
-            <div className="pdf-page" data-active={isActiveSourcePage}>
-              <div className="pdf-page-inner" style={pageTextStyle}>
-                <div className="pdf-heading">Page {page.pageNumber}</div>
-                {page.paragraphs.map((paragraph, index) => {
-                  const paragraphNumber = index + 1;
-                  const highlighted =
-                    isActiveSourcePage &&
-                    paragraphNumber >= selectedSource.paragraphIndex &&
-                    paragraphNumber <= selectedSource.paragraphEndIndex;
-                  return (
-                    <p key={`${page.pageNumber}-${index}`} className="pdf-paragraph" data-highlight={highlighted}>
-                      {paragraph}
-                    </p>
-                  );
-                })}
-              </div>
+            <div className="pdf-page image-page" data-active={isActiveSourcePage} style={{ width: `${imageZoom}%` }}>
+              {viewerError ? <div className="viewer-error">{viewerError}</div> : null}
+              {pageImageUrl ? (
+                <div className="pdf-image-layer">
+                  <img
+                    ref={imgRef}
+                    alt={`${document.fileName} page ${currentPage}`}
+                    className="pdf-page-image"
+                    onLoad={() => {
+                      if (imgRef.current) {
+                        setImageSize({
+                          width: imgRef.current.clientWidth,
+                          height: imgRef.current.clientHeight
+                        });
+                      }
+                    }}
+                    src={pageImageUrl}
+                  />
+                  <div className="pdf-highlight-layer" aria-hidden="true">
+                    {highlightRects.map((rect, index) => (
+                      <div
+                        key={`${rect.x0}-${rect.y0}-${index}`}
+                        className="pdf-highlight-rect"
+                        style={{
+                          left: rect.x0 * scaleX,
+                          top: rect.y0 * scaleY,
+                          width: (rect.x1 - rect.x0) * scaleX,
+                          height: (rect.y1 - rect.y0) * scaleY
+                        }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="viewer-loading">Loading page image...</div>
+              )}
               <div className="pdf-footer">
                 <span>{document.fileName}</span>
-                <span>{page.pageNumber}</span>
+                <span>{currentPage}</span>
               </div>
             </div>
           </div>

@@ -790,10 +790,11 @@ a {
   min-width: 0;
   display: flex;
   justify-content: center;
+  overflow: visible;
 }
 
 .viewer-stage {
-  width: min(100%, 560px);
+  width: min(100%, 720px);
   margin: 0 auto;
   display: grid;
   grid-template-columns: 44px minmax(0, 1fr) 44px;
@@ -833,36 +834,55 @@ a {
   overflow: hidden;
 }
 
+.pdf-page.image-page {
+  flex: 0 0 auto;
+  max-width: none;
+  min-width: 280px;
+  transition: width 160ms ease;
+}
+
 .pdf-page[data-active="true"] {
   border-color: color-mix(in oklch, var(--accent) 20%, white);
 }
 
-.pdf-page-inner {
-  --page-text-scale: 1;
-  padding: 22px 24px 16px;
+.pdf-image-layer {
+  position: relative;
+  width: 100%;
+  background: #f8f8f5;
 }
 
-.pdf-heading {
-  margin-bottom: calc(14px * var(--page-text-scale));
-  font-weight: 700;
-  font-size: calc(16px * var(--page-text-scale));
-  line-height: calc(22px * var(--page-text-scale));
-  letter-spacing: -0.02em;
+.pdf-page-image {
+  display: block;
+  width: 100%;
+  height: auto;
+  user-select: none;
 }
 
-.pdf-paragraph {
-  margin: 0 0 calc(12px * var(--page-text-scale));
-  font-size: calc(12.6px * var(--page-text-scale));
-  line-height: calc(22px * var(--page-text-scale));
-  color: var(--ink-2);
+.pdf-highlight-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
 }
 
-.pdf-paragraph[data-highlight="true"] {
-  background: linear-gradient(180deg, rgba(255, 241, 162, 0.2), rgba(255, 241, 162, 0.62));
-  border-radius: calc(12px * var(--page-text-scale));
-  padding: calc(8px * var(--page-text-scale)) calc(10px * var(--page-text-scale));
-  margin-left: calc(-10px * var(--page-text-scale));
-  margin-right: calc(-10px * var(--page-text-scale));
+.pdf-highlight-rect {
+  position: absolute;
+  border: 1px solid rgba(197, 137, 0, 0.72);
+  background: rgba(255, 224, 92, 0.36);
+  box-shadow: 0 0 0 1px rgba(255, 249, 202, 0.45) inset;
+}
+
+.viewer-loading,
+.viewer-error {
+  min-height: 420px;
+  display: grid;
+  place-items: center;
+  padding: 28px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.viewer-error {
+  color: #a83d3d;
 }
 
 .pdf-footer {
@@ -874,6 +894,12 @@ a {
   color: var(--muted);
   font-size: 10.5px;
   font-family: var(--font-mono);
+}
+
+.viewer-fit-btn {
+  height: 34px;
+  padding: 0 10px;
+  font-size: 11px;
 }
 
 .viewer-pagination {

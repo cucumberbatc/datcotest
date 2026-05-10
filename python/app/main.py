@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
 from app.config import get_settings
-from app.pdf_pipeline import build_highlighted_pdf, ingest_pdf, sanitize_filename
+from app.pdf_pipeline import build_highlighted_pdf, get_page_size, ingest_pdf, render_page_image, sanitize_filename
 from app.rag_service import rag_service
 from app.schemas import (
     AskRequest,
@@ -17,7 +17,9 @@ from app.schemas import (
     DocumentDetailResponse,
     DocumentSummaryResponse,
     HighlightResponse,
+    PageMetadataResponse,
     PageResponse,
+    RectResponse,
     UploadResponse,
 )
 from app.store import ChunkRecord, DocumentRecord, store
@@ -40,6 +42,7 @@ app.add_middleware(
 
 settings.uploads_root.mkdir(parents=True, exist_ok=True)
 settings.highlights_root.mkdir(parents=True, exist_ok=True)
+settings.page_images_root.mkdir(parents=True, exist_ok=True)
 
 
 def to_summary(document: DocumentRecord) -> DocumentSummaryResponse:
@@ -125,6 +128,12 @@ def delete_document(document_id: str) -> dict[str, bool]:
     for file in settings.highlights_root.glob(f"{document_id}-*.pdf"):
         file.unlink(missing_ok=True)
 
+    page_image_dir = settings.page_images_root / document_id
+    if page_image_dir.exists():
+        for file in page_image_dir.glob("*.png"):
+            file.unlink(missing_ok=True)
+        page_image_dir.rmdir()
+
     rag_service.rebuild_index()
     return {"ok": True}
 
@@ -137,20 +146,45 @@ def open_document_file(document_id: str) -> FileResponse:
 
 
 @app.get(
+    f"{settings.api_prefix}/documents/{{document_id}}/pages/{{page_number}}/metadata",
+    response_model=PageMetadataResponse,
+)
+def get_page_metadata(document_id: str, page_number: int) -> PageMetadataResponse:
+    document = get_document_or_404(document_id)
+    width, height = get_page_size(document.file_path, page_number)
+    return PageMetadataResponse(
+        documentId=document.id,
+        pageNumber=page_number,
+        width=width,
+        height=height,
+        imageUrl=f"/api/documents/{document.id}/pages/{page_number}/image",
+    )
+
+
+@app.get(f"{settings.api_prefix}/documents/{{document_id}}/pages/{{page_number}}/image")
+def get_page_image(document_id: str, page_number: int) -> FileResponse:
+    document = get_document_or_404(document_id)
+    output_path = settings.page_images_root / document.id / f"page_{page_number}.png"
+    render_page_image(document.file_path, output_path, page_number)
+    return FileResponse(output_path, media_type="image/png", filename=f"{document.id}-page-{page_number}.png")
+
+
+@app.get(
     f"{settings.api_prefix}/documents/{{document_id}}/chunks/{{chunk_id}}/highlight",
     response_model=HighlightResponse,
 )
-def get_highlight_metadata(document_id: str, chunk_id: str) -> HighlightResponse:
+def get_highlight_metadata(
+    document_id: str,
+    chunk_id: str,
+    paragraphStart: int | None = Query(default=None),
+    paragraphEnd: int | None = Query(default=None),
+) -> HighlightResponse:
     document = get_document_or_404(document_id)
     chunk = store.get_chunk(chunk_id)
     if not chunk or chunk.document_id != document.id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chunk not found.")
 
-    return HighlightResponse(
-        documentId=document.id,
-        chunkId=chunk.id,
-        highlightedFileUrl=f"/api/documents/{document.id}/chunks/{chunk.id}/highlighted-file",
-    )
+    return build_highlight_response(document.id, chunk, paragraphStart, paragraphEnd)
 
 
 @app.get(f"{settings.api_prefix}/documents/{{document_id}}/chunks/{{chunk_id}}/highlighted-file")
@@ -198,6 +232,23 @@ def select_highlight_rects(
         selected.extend(paragraph_rects)
 
     return selected or chunk.rects
+
+
+def build_highlight_response(
+    document_id: str,
+    chunk: ChunkRecord,
+    paragraph_start: int | None,
+    paragraph_end: int | None,
+) -> HighlightResponse:
+    return HighlightResponse(
+        documentId=document_id,
+        chunkId=chunk.id,
+        pageNumber=chunk.page_number,
+        rects=[
+            RectResponse(x0=rect[0], y0=rect[1], x1=rect[2], y1=rect[3])
+            for rect in select_highlight_rects(chunk, paragraph_start, paragraph_end)
+        ],
+    )
 
 
 @app.post(f"{settings.api_prefix}/chat/ask", response_model=AskResponse)

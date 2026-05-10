@@ -37,6 +37,10 @@ class Settings(BaseSettings):
     def highlights_root(self) -> Path:
         return self.storage_root / "highlights"
 
+    @property
+    def page_images_root(self) -> Path:
+        return self.storage_root / "page_images"
+
 
 @lru_cache
 def get_settings() -> Settings:

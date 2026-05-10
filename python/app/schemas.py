@@ -53,10 +53,26 @@ class AskResponse(BaseModel):
     elapsedMs: int
 
 
+class PageMetadataResponse(BaseModel):
+    documentId: str
+    pageNumber: int
+    width: float
+    height: float
+    imageUrl: str
+
+
+class RectResponse(BaseModel):
+    x0: float
+    y0: float
+    x1: float
+    y1: float
+
+
 class HighlightResponse(BaseModel):
     documentId: str
     chunkId: str
-    highlightedFileUrl: str
+    pageNumber: int
+    rects: list[RectResponse]
 
 
 class LlmAnswerPayload(BaseModel):
