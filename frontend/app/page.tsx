@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 
 type DocumentSummary = {
   id: string;
@@ -713,8 +713,6 @@ function ViewerPane({
   document: DocumentDetail;
   selectedSource: Source | null;
 }) {
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const pageRefs = useRef<Record<number, HTMLDivElement | null>>({});
   const [zoom, setZoom] = useState(100);
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -724,14 +722,27 @@ function ViewerPane({
     }
 
     setCurrentPage(selectedSource.pageNumber);
-    const node = pageRefs.current[selectedSource.pageNumber];
-    if (node && containerRef.current) {
-      node.scrollIntoView({
-        behavior: "smooth",
-        block: "start"
-      });
-    }
   }, [document.id, selectedSource]);
+
+  useEffect(() => {
+    setCurrentPage((page) => Math.min(Math.max(page, 1), document.pageCount));
+  }, [document.pageCount]);
+
+  const page = document.pages.find((item) => item.pageNumber === currentPage) ?? document.pages[0];
+  const isActiveSourcePage = selectedSource?.documentId === document.id && selectedSource.pageNumber === page.pageNumber;
+  const canGoPrev = currentPage > 1;
+  const canGoNext = currentPage < document.pageCount;
+  const pageTextStyle = {
+    "--page-text-scale": zoom / 100
+  } as CSSProperties;
+
+  function goToPrevPage() {
+    setCurrentPage((pageNumber) => Math.max(1, pageNumber - 1));
+  }
+
+  function goToNextPage() {
+    setCurrentPage((pageNumber) => Math.min(document.pageCount, pageNumber + 1));
+  }
 
   return (
     <>
@@ -745,46 +756,75 @@ function ViewerPane({
             +
           </button>
         </div>
-        <div className="viewer-toolbar-group mono">
-          <span>{currentPage}</span>
-          <span>/</span>
-          <span>{document.pageCount}</span>
-        </div>
       </div>
 
-      <div className="viewer-canvas" ref={containerRef}>
-        <div className="viewer-scale" style={{ transform: `scale(${zoom / 100})` }}>
-          {document.pages.map((page) => {
-            const active =
-              selectedSource?.documentId === document.id && selectedSource.pageNumber === page.pageNumber;
-            return (
-              <div
-                key={page.pageNumber}
-                ref={(node) => {
-                  pageRefs.current[page.pageNumber] = node;
-                }}
-                className="pdf-page"
-                data-active={active}
-                onClick={() => setCurrentPage(page.pageNumber)}
-              >
-                <div className="pdf-page-inner">
-                  <div className="pdf-heading">Page {page.pageNumber}</div>
-                  {page.paragraphs.map((paragraph, index) => {
-                    const highlighted = active && selectedSource?.paragraphIndex === index + 1;
-                    return (
-                      <p key={`${page.pageNumber}-${index}`} className="pdf-paragraph" data-highlight={highlighted}>
-                        {paragraph}
-                      </p>
-                    );
-                  })}
-                </div>
-                <div className="pdf-footer">
-                  <span>{document.fileName}</span>
-                  <span>{page.pageNumber}</span>
-                </div>
+      <div className="viewer-canvas">
+        <div className="viewer-stage">
+          <button
+            aria-label="Previous page"
+            className="viewer-side-nav"
+            disabled={!canGoPrev}
+            onClick={goToPrevPage}
+            type="button"
+          >
+            <span>&lt;</span>
+          </button>
+
+          <div className="viewer-page-shell">
+            <div className="pdf-page" data-active={isActiveSourcePage}>
+              <div className="pdf-page-inner" style={pageTextStyle}>
+                <div className="pdf-heading">Page {page.pageNumber}</div>
+                {page.paragraphs.map((paragraph, index) => {
+                  const highlighted = isActiveSourcePage && selectedSource?.paragraphIndex === index + 1;
+                  return (
+                    <p key={`${page.pageNumber}-${index}`} className="pdf-paragraph" data-highlight={highlighted}>
+                      {paragraph}
+                    </p>
+                  );
+                })}
               </div>
-            );
-          })}
+              <div className="pdf-footer">
+                <span>{document.fileName}</span>
+                <span>{page.pageNumber}</span>
+              </div>
+            </div>
+          </div>
+
+          <button
+            aria-label="Next page"
+            className="viewer-side-nav"
+            disabled={!canGoNext}
+            onClick={goToNextPage}
+            type="button"
+          >
+            <span>&gt;</span>
+          </button>
+        </div>
+
+        <div className="viewer-pagination">
+          <button
+            aria-label="Previous page"
+            className="icon-btn"
+            disabled={!canGoPrev}
+            onClick={goToPrevPage}
+            type="button"
+          >
+            &lt;
+          </button>
+          <div className="viewer-page-indicator">
+            <span>{currentPage}</span>
+            <span>/</span>
+            <span>{document.pageCount}</span>
+          </div>
+          <button
+            aria-label="Next page"
+            className="icon-btn"
+            disabled={!canGoNext}
+            onClick={goToNextPage}
+            type="button"
+          >
+            &gt;
+          </button>
         </div>
       </div>
     </>
