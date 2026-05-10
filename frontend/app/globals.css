@@ -34,12 +34,14 @@
 html,
 body {
   margin: 0;
+  height: 100%;
   min-height: 100%;
   background: linear-gradient(180deg, #f6f4ef 0%, #f4f4f2 100%);
   color: var(--ink);
   font-family: var(--font-sans);
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
+  overflow: hidden;
 }
 
 button,
@@ -68,7 +70,9 @@ a {
   display: grid;
   grid-template-columns: 280px minmax(0, 1fr) 520px;
   grid-template-rows: 56px minmax(0, 1fr);
+  height: 100vh;
   min-height: 100vh;
+  overflow: hidden;
 }
 
 .topbar {
@@ -139,6 +143,7 @@ a {
   min-height: 0;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .pane-left {
@@ -416,6 +421,7 @@ a {
 
 .chat-body {
   flex: 1;
+  min-height: 0;
   overflow: auto;
   padding: 24px 22px 12px;
 }
@@ -775,6 +781,7 @@ a {
 
 .viewer-canvas {
   flex: 1;
+  min-height: 0;
   overflow: auto;
   padding: 18px;
 }
@@ -934,9 +941,16 @@ a {
 }
 
 @media (max-width: 1100px) {
+  html,
+  body {
+    overflow: auto;
+  }
+
   .app-shell {
     grid-template-columns: 1fr;
     grid-template-rows: 56px auto minmax(420px, auto) auto;
+    height: auto;
+    overflow: visible;
   }
 
   .pane-left,
