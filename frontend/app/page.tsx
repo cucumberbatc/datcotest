@@ -28,6 +28,7 @@ type Source = {
   pageNumber: number;
   paragraphIndex: number;
   paragraphEndIndex: number;
+  sectionTitle?: string | null;
   locationLabel: string;
   excerpt: string;
   score: number;
@@ -42,6 +43,24 @@ type AskResponse = {
   noEvidenceNote: string | null;
   sources: Source[];
   elapsedMs: number;
+};
+
+type DebugRetrieveHit = {
+  rank: number;
+  score: number;
+  chunkId: string;
+  documentId: string;
+  fileName: string;
+  pageNumber: number;
+  paragraphIndex: number;
+  paragraphEndIndex: number;
+  sectionTitle?: string | null;
+  text: string;
+};
+
+type DebugRetrieveResult = {
+  question: string;
+  hits: DebugRetrieveHit[];
 };
 
 type UserMessage = {
@@ -128,6 +147,70 @@ export default function HomePage() {
   const [activeCitation, setActiveCitation] = useState<number | null>(null);
   const [selectedSource, setSelectedSource] = useState<Source | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [debugResult, setDebugResult] = useState<DebugRetrieveResult | null>(null);
+  const [showDebugModal, setShowDebugModal] = useState(false);
+
+  const modalOverlayStyle: CSSProperties = {
+    position: "fixed",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 9999
+  };
+
+  const modalStyle: CSSProperties = {
+    backgroundColor: "#fff",
+    borderRadius: "8px",
+    boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
+    maxWidth: "600px",
+    width: "90%",
+    maxHeight: "80vh",
+    display: "flex",
+    flexDirection: "column",
+    overflow: "hidden"
+  };
+
+  const modalHeaderStyle: CSSProperties = {
+    padding: "16px 20px",
+    borderBottom: "1px solid #e5e7eb",
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center"
+  };
+
+  const modalContentStyle: CSSProperties = {
+    overflowY: "auto",
+    padding: "16px 20px",
+    flex: 1
+  };
+
+  const hitCardStyle: CSSProperties = {
+    marginBottom: "16px",
+    padding: "12px",
+    backgroundColor: "#f9fafb",
+    borderRadius: "6px",
+    border: "1px solid #e5e7eb"
+  };
+
+  const hitHeaderStyle: CSSProperties = {
+    display: "flex",
+    gap: "12px",
+    alignItems: "center",
+    marginBottom: "8px",
+    fontSize: "13px"
+  };
+
+  const hitTextStyle: CSSProperties = {
+    margin: 0,
+    fontSize: "13px",
+    lineHeight: "1.5",
+    color: "#374151"
+  };
 
   const totalBytes = useMemo(
     () => documents.reduce((sum, document) => sum + document.sizeBytes, 0),
@@ -380,6 +463,39 @@ export default function HomePage() {
       setToast(error instanceof Error ? error.message : "질문 처리 중 오류가 발생했습니다.");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function debugRetrieve() {
+    const question = composer.trim();
+    if (!question || busy) {
+      return;
+    }
+
+    const scopedDocumentIds =
+      scope === "selected" && activeDocId ? [activeDocId] : documents.map((document) => document.id);
+
+    try {
+      const response = await fetch(`${API_BASE}/chat/debug-retrieve`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          question,
+          documentIds: scopedDocumentIds
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      const payload = (await response.json()) as DebugRetrieveResult;
+      setDebugResult(payload);
+      setShowDebugModal(true);
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : "디버그 검색 중 오류가 발생했습니다.");
     }
   }
 
@@ -670,9 +786,14 @@ export default function HomePage() {
                 }
               }}
             />
-            <button className="send-btn" disabled={busy || !composer.trim()} onClick={() => void askQuestion()} type="button">
-              {busy ? <SpinnerIcon /> : <SendIcon />}
-            </button>
+            <div style={{ display: "flex", gap: "8px" }}>
+              <button className="send-btn" disabled={busy || !composer.trim()} onClick={() => void debugRetrieve()} title="검색 결과 디버깅" type="button">
+                {busy ? "..." : "🔍"}
+              </button>
+              <button className="send-btn" disabled={busy || !composer.trim()} onClick={() => void askQuestion()} type="button">
+                {busy ? <SpinnerIcon /> : <SendIcon />}
+              </button>
+            </div>
           </div>
           <div className="composer-meta">
             <span>{scope === "all" ? `전 문서(${documents.length}) 검색` : "선택 문서만 검색"}</span>
@@ -703,6 +824,40 @@ export default function HomePage() {
       </aside>
 
       {toast ? <div className="toast">{toast}</div> : null}
+
+      {showDebugModal && debugResult ? (
+        <div style={modalOverlayStyle} onClick={() => setShowDebugModal(false)}>
+          <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
+            <div style={modalHeaderStyle}>
+              <h2 style={{ margin: 0 }}>검색 디버그: "{debugResult.question}"</h2>
+              <button
+                onClick={() => setShowDebugModal(false)}
+                style={{ background: "none", border: "none", cursor: "pointer", fontSize: "20px" }}
+                type="button"
+              >
+                ✕
+              </button>
+            </div>
+            <div style={modalContentStyle}>
+              {debugResult.hits.length === 0 ? (
+                <p style={{ color: "#999" }}>검색 결과 없음</p>
+              ) : (
+                debugResult.hits.map((hit) => (
+                  <div key={hit.chunkId} style={hitCardStyle}>
+                    <div style={hitHeaderStyle}>
+                      <span style={{ fontWeight: "bold" }}>#{hit.rank}</span>
+                      <span style={{ color: "#f59e0b", fontWeight: "bold" }}>{hit.score.toFixed(4)}</span>
+                      <span style={{ color: "#666", fontSize: "12px" }}>{hit.fileName}</span>
+                      <span style={{ color: "#666", fontSize: "12px" }}>p.{hit.pageNumber}</span>
+                    </div>
+                    <p style={hitTextStyle}>{hit.text}</p>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

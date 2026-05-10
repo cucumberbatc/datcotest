@@ -35,6 +35,8 @@ class SourceResponse(BaseModel):
     fileName: str
     pageNumber: int
     paragraphIndex: int
+    paragraphEndIndex: int
+    sectionTitle: str | None = None
     locationLabel: str
     excerpt: str
     score: float

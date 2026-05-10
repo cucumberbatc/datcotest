@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import mimetypes
 import uuid
+import logging
 
-from fastapi import FastAPI, File, HTTPException, UploadFile, status
+from fastapi import FastAPI, File, HTTPException, Query, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
@@ -19,9 +20,14 @@ from app.schemas import (
     PageResponse,
     UploadResponse,
 )
-from app.store import DocumentRecord, store
+from app.store import ChunkRecord, DocumentRecord, store
 
 settings = get_settings()
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(name)s | %(levelname)s | %(message)s",
+    )
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title=settings.app_name)
 app.add_middleware(
@@ -148,20 +154,50 @@ def get_highlight_metadata(document_id: str, chunk_id: str) -> HighlightResponse
 
 
 @app.get(f"{settings.api_prefix}/documents/{{document_id}}/chunks/{{chunk_id}}/highlighted-file")
-def get_highlighted_file(document_id: str, chunk_id: str) -> FileResponse:
+def get_highlighted_file(
+    document_id: str,
+    chunk_id: str,
+    paragraphStart: int | None = Query(default=None),
+    paragraphEnd: int | None = Query(default=None),
+) -> FileResponse:
     document = get_document_or_404(document_id)
     chunk = store.get_chunk(chunk_id)
     if not chunk or chunk.document_id != document.id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chunk not found.")
 
-    output_path = settings.highlights_root / f"{document.id}-{chunk.id}.pdf"
+    highlight_suffix = (
+        f"-p{paragraphStart}-{paragraphEnd}"
+        if paragraphStart is not None and paragraphEnd is not None
+        else ""
+    )
+    output_path = settings.highlights_root / f"{document.id}-{chunk.id}{highlight_suffix}.pdf"
     build_highlighted_pdf(
         source_pdf=document.file_path,
         output_pdf=output_path,
         page_number=chunk.page_number,
-        bbox=chunk.bbox,
+        rects=select_highlight_rects(chunk, paragraphStart, paragraphEnd),
     )
     return FileResponse(output_path, media_type="application/pdf", filename=f"{document.file_name}.highlighted.pdf")
+
+
+def select_highlight_rects(
+    chunk: ChunkRecord,
+    paragraph_start: int | None,
+    paragraph_end: int | None,
+) -> list[tuple[float, float, float, float]]:
+    if paragraph_start is None or paragraph_end is None:
+        return chunk.rects
+
+    start_offset = max(paragraph_start - chunk.paragraph_index, 0)
+    end_offset = min(paragraph_end - chunk.paragraph_index, len(chunk.paragraph_rects) - 1)
+    if start_offset > end_offset:
+        return chunk.rects
+
+    selected: list[tuple[float, float, float, float]] = []
+    for paragraph_rects in chunk.paragraph_rects[start_offset : end_offset + 1]:
+        selected.extend(paragraph_rects)
+
+    return selected or chunk.rects
 
 
 @app.post(f"{settings.api_prefix}/chat/ask", response_model=AskResponse)
@@ -172,3 +208,12 @@ def ask_question(request: AskRequest) -> AskResponse:
         else store.list_documents()
     )
     return rag_service.ask(request.question, scoped_documents)
+
+@app.post(f"{settings.api_prefix}/chat/debug-retrieve")
+def debug_retrieve(request: AskRequest) -> dict:
+    scoped_documents = (
+        [get_document_or_404(document_id) for document_id in request.documentIds]
+        if request.documentIds
+        else store.list_documents()
+    )
+    return rag_service.debug_retrieve(request.question, scoped_documents)

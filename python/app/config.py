@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     openai_temperature: float = 0.0
     rag_retrieval_k: int = 6
     rag_answer_top_k: int = 3
+    rag_min_score: float = 0.0
 
     @property
     def storage_root(self) -> Path:

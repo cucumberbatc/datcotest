@@ -13,8 +13,11 @@ class ChunkRecord:
     file_name: str
     page_number: int
     paragraph_index: int
+    paragraph_end_index: int
+    section_title: str | None
     text: str
-    bbox: tuple[float, float, float, float]
+    rects: list[tuple[float, float, float, float]]
+    paragraph_rects: list[list[tuple[float, float, float, float]]]
 
 
 @dataclass(slots=True)
