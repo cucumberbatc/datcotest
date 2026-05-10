@@ -20,8 +20,32 @@ ALNUM_HANGUL_RE = re.compile(r"[^0-9A-Za-z\uAC00-\uD7A3]+")
 BRACKET_LABEL_RE = re.compile(r"^\[[^\]]+\]")
 logger = logging.getLogger("rag.retrieval")
 SOURCE_EXCERPT_CHARS = 2200
-KOREAN_PARTICLE_SUFFIXES = ("으로", "에서", "에게", "까지", "부터", "처럼", "보다", "은", "는", "이", "가", "을", "를", "의", "에", "도", "만")
-
+KOREAN_PARTICLE_SUFFIXES = (
+    "이라고",
+    "라고",
+    "이래",
+    "래",
+    "인가",
+    "이야",
+    "야",
+    "으로",
+    "에서",
+    "에게",
+    "까지",
+    "부터",
+    "처럼",
+    "보다",
+    "은",
+    "는",
+    "이",
+    "가",
+    "을",
+    "를",
+    "의",
+    "에",
+    "도",
+    "만",
+)
 class RagService:
     def __init__(self) -> None:
         self._settings = get_settings
@@ -81,7 +105,6 @@ class RagService:
             self._to_source(index + 1, chunk, score, question)
             for index, (chunk, score) in enumerate(retrieved)
         ]
-
         if settings.openai_api_key:
             payload = self._answer_with_llm(question, source_candidates)
         else:
@@ -271,6 +294,10 @@ class RagService:
                     (
                         "You are a PDF-grounded question-answering assistant. "
                         "Use only the supplied context. Do not infer facts outside the context. "
+                        "The context may come from OCR, so spacing and a few characters can be noisy. "
+                        "For table-like context, read nearby row text together because labels and values may be split. "
+                        "Treat common OCR confusions in numeric values carefully, such as O/o read instead of 0. "
+                        "If the requested fact is still clearly present, answer from that evidence. "
                         "If the context is insufficient, set no_evidence=true. "
                         "Answer in Korean. Include only the citation numbers actually used."
                     ),
@@ -367,7 +394,7 @@ class RagService:
         logger.info("hit_count=%s", len(hits))
 
         for index, (chunk, score) in enumerate(hits[:limit], start=1):
-            preview = self._abbreviate(chunk.text, 240)
+            preview = self._abbreviate(chunk.text, 240, preserve_newlines=False)
             logger.info(
                 "#%s score=%.4f file=%s page=%s para=%s-%s chunk_id=%s text=%s",
                 index,
@@ -422,6 +449,12 @@ class RagService:
             if len(evidence_text) <= SOURCE_EXCERPT_CHARS:
                 return span_start, span_end, evidence_text
 
+        if self._should_include_neighboring_context(page.paragraphs, chunk.section_title, best_index):
+            span_start, span_end = self._neighboring_context_span(page.paragraphs, start, end, best_index)
+            evidence_text = self._evidence_text(page.paragraphs, chunk.section_title, span_start, span_end)
+            if len(evidence_text) <= SOURCE_EXCERPT_CHARS:
+                return span_start, span_end, evidence_text
+
         evidence_text = page.paragraphs[best_index - 1]
         if chunk.section_title and chunk.section_title not in evidence_text:
             evidence_text = f"Section: {chunk.section_title}\n\n{evidence_text}"
@@ -439,6 +472,64 @@ class RagService:
         overlap_score = len(query_tokens & paragraph_tokens) / max(len(query_tokens), 1)
         compact_score = self._compact_match_score(query_compact, query_terms, paragraph)
         return max(overlap_score, compact_score)
+
+    def _should_include_neighboring_context(
+        self,
+        paragraphs: list[str],
+        section_title: str | None,
+        paragraph_index: int,
+    ) -> bool:
+        paragraph = paragraphs[paragraph_index - 1]
+        if section_title == "OCR extracted text":
+            return True
+
+        if self._looks_table_like(paragraph):
+            return True
+
+        previous_paragraph = paragraphs[paragraph_index - 2] if paragraph_index > 1 else ""
+        next_paragraph = paragraphs[paragraph_index] if paragraph_index < len(paragraphs) else ""
+        return self._looks_table_like(previous_paragraph) or self._looks_table_like(next_paragraph)
+
+    @staticmethod
+    def _looks_table_like(text: str) -> bool:
+        normalized = re.sub(r"\s+", " ", text).strip()
+        if not normalized:
+            return False
+
+        tokens = normalized.split()
+        digit_count = sum(char.isdigit() for char in normalized)
+        separator_count = sum(normalized.count(separator) for separator in ("|", "ㆍ", ":", "±", "×", "/", "%"))
+        short_token_count = sum(1 for token in tokens if len(token) <= 4)
+
+        return (
+            separator_count >= 2
+            or digit_count >= 4
+            or (len(tokens) >= 6 and short_token_count / len(tokens) >= 0.5)
+        )
+
+    def _neighboring_context_span(
+        self,
+        paragraphs: list[str],
+        chunk_start: int,
+        chunk_end: int,
+        center_index: int,
+    ) -> tuple[int, int]:
+        span_start = max(chunk_start, center_index - 1)
+        span_end = min(chunk_end, center_index + 1)
+
+        while span_start > chunk_start:
+            candidate = self._evidence_text(paragraphs, None, span_start - 1, span_end)
+            if len(candidate) > SOURCE_EXCERPT_CHARS or not self._looks_table_like(paragraphs[span_start - 2]):
+                break
+            span_start -= 1
+
+        while span_end < chunk_end:
+            candidate = self._evidence_text(paragraphs, None, span_start, span_end + 1)
+            if len(candidate) > SOURCE_EXCERPT_CHARS or not self._looks_table_like(paragraphs[span_end]):
+                break
+            span_end += 1
+
+        return span_start, span_end
 
     @staticmethod
     def _is_label_paragraph(text: str) -> bool:
@@ -476,6 +567,18 @@ class RagService:
         return ALNUM_HANGUL_RE.sub("", text).lower()
 
     @classmethod
+    def _ocr_normalized_compact_text(cls, text: str) -> str:
+        compact = cls._compact_text(text)
+        return re.sub(r"[a-z0-9]+", cls._normalize_ocr_alnum_token, compact)
+
+    @staticmethod
+    def _normalize_ocr_alnum_token(match: re.Match[str]) -> str:
+        token = match.group(0)
+        if not any(char.isdigit() for char in token):
+            return token
+        return token.replace("o", "0").replace("i", "1").replace("l", "1")
+
+    @classmethod
     def _query_terms(cls, text: str) -> list[str]:
         terms: set[str] = set()
         for token in TOKEN_RE.findall(text):
@@ -506,18 +609,31 @@ class RagService:
     @classmethod
     def _compact_match_score(cls, query_compact: str, query_terms: list[str], chunk_text: str) -> float:
         chunk_compact = cls._compact_text(chunk_text)
+        query_ocr_compact = cls._ocr_normalized_compact_text(query_compact)
+        chunk_ocr_compact = cls._ocr_normalized_compact_text(chunk_text)
+        searchable_compacts = {chunk_compact, chunk_ocr_compact}
+        query_compacts = {query_compact, query_ocr_compact}
         if not query_compact or not chunk_compact:
             return 0.0
 
         score = 0.0
-        if len(query_compact) > 2 and query_compact in chunk_compact:
+        if len(query_compact) > 2 and any(
+            query in searchable
+            for query in query_compacts
+            for searchable in searchable_compacts
+        ):
             score += 1.0
             return score
 
         matched_terms = [
             term
             for term in query_terms
-            if len(term) > 1 and term in chunk_compact
+            if len(term) > 1
+            and any(
+                candidate in searchable
+                for candidate in {term, cls._ocr_normalized_compact_text(term)}
+                for searchable in searchable_compacts
+            )
         ]
         if matched_terms:
             if len(matched_terms) == len(query_terms):
@@ -526,17 +642,23 @@ class RagService:
                 score += (len(matched_terms) / max(len(query_terms), 1)) * 0.7
 
         if len(query_compact) > 3:
-            for i in range(len(chunk_compact) - len(query_compact) + 1):
-                chunk_substring = chunk_compact[i : i + len(query_compact)]
-                matches = sum(1 for a, b in zip(query_compact, chunk_substring) if a == b)
-                if matches >= len(query_compact) * 0.7:
-                    score = max(score, 0.6 * (matches / len(query_compact)))
+            for searchable in searchable_compacts:
+                for query in query_compacts:
+                    for i in range(len(searchable) - len(query) + 1):
+                        chunk_substring = searchable[i : i + len(query)]
+                        matches = sum(1 for a, b in zip(query, chunk_substring) if a == b)
+                        if matches >= len(query) * 0.7:
+                            score = max(score, 0.6 * (matches / len(query)))
 
         return min(score, 1.0)
 
     @staticmethod
-    def _abbreviate(text: str, max_length: int) -> str:
-        normalized = re.sub(r"\s+", " ", text).strip()
+    def _abbreviate(text: str, max_length: int, preserve_newlines: bool = True) -> str:
+        if preserve_newlines:
+            lines = [re.sub(r"[ \t\r\f\v]+", " ", line).strip() for line in text.splitlines()]
+            normalized = "\n".join(line for line in lines if line)
+        else:
+            normalized = re.sub(r"\s+", " ", text).strip()
         if len(normalized) <= max_length:
             return normalized
         return normalized[: max_length - 1].rstrip() + "..."

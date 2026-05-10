@@ -43,6 +43,7 @@ app.add_middleware(
 settings.uploads_root.mkdir(parents=True, exist_ok=True)
 settings.highlights_root.mkdir(parents=True, exist_ok=True)
 settings.page_images_root.mkdir(parents=True, exist_ok=True)
+settings.ocr_pages_root.mkdir(parents=True, exist_ok=True)
 
 
 def to_summary(document: DocumentRecord) -> DocumentSummaryResponse:
@@ -133,6 +134,12 @@ def delete_document(document_id: str) -> dict[str, bool]:
         for file in page_image_dir.glob("*.png"):
             file.unlink(missing_ok=True)
         page_image_dir.rmdir()
+
+    ocr_page_dir = settings.ocr_pages_root / document_id
+    if ocr_page_dir.exists():
+        for file in ocr_page_dir.glob("*.png"):
+            file.unlink(missing_ok=True)
+        ocr_page_dir.rmdir()
 
     rag_service.rebuild_index()
     return {"ok": True}

@@ -24,6 +24,11 @@ class Settings(BaseSettings):
     rag_retrieval_k: int = 6
     rag_answer_top_k: int = 3
     rag_min_score: float = 0.0
+    ocr_enabled: bool = True
+    ocr_languages: str = "ko,en"
+    ocr_zoom: float = 2.0
+    ocr_min_text_chars: int = 40
+    ocr_gpu: bool = False
 
     @property
     def storage_root(self) -> Path:
@@ -40,6 +45,10 @@ class Settings(BaseSettings):
     @property
     def page_images_root(self) -> Path:
         return self.storage_root / "page_images"
+
+    @property
+    def ocr_pages_root(self) -> Path:
+        return self.storage_root / "ocr_pages"
 
 
 @lru_cache

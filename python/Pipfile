@@ -13,6 +13,8 @@ langchain-community = "<0.4,>=0.3"
 faiss-cpu = "<2.0,>=1.8"
 pymupdf = "<2.0,>=1.24"
 uvicorn = {extras = ["standard"], version = "<1.0,>=0.30"}
+easyocr = "==1.7.2"
+numpy = "==1.26.4"
 
 [dev-packages]
 

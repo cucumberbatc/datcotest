@@ -1,14 +1,18 @@
 from __future__ import annotations
 
+import logging
 import re
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from functools import lru_cache
 from pathlib import Path
+from typing import Any
 
 import fitz  # PyMuPDF
 from fastapi import HTTPException, status
 
+from app.config import get_settings
 from app.store import ChunkRecord, DocumentRecord, PageRecord
 
 BLOCK_TEXT = 0
@@ -18,6 +22,8 @@ CHUNK_MAX_CHARS = 1200
 CHUNK_OVERLAP_CHARS = 150
 MIN_PARAGRAPH_CHARS = 40
 DEBUG_EXTRACTED_TEXT = True
+OCR_SOURCE_TITLE = "OCR extracted text"
+logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -48,6 +54,13 @@ class ExtractedParagraph:
     rects: list[tuple[float, float, float, float]]
     section_title: str | None = None
     is_section_title: bool = False
+
+
+@dataclass(slots=True)
+class OcrTextItem:
+    text: str
+    score: float
+    bbox: tuple[float, float, float, float]
 
 
 def sanitize_filename(name: str) -> str:
@@ -201,6 +214,170 @@ def _extract_page_paragraphs(page: fitz.Page) -> list[ExtractedParagraph]:
     return paragraphs
 
 
+def _ocr_languages() -> list[str]:
+    languages = [
+        language.strip()
+        for language in get_settings().ocr_languages.split(",")
+        if language.strip()
+    ]
+    return languages or ["ko", "en"]
+
+
+@lru_cache(maxsize=1)
+def _get_easyocr_reader() -> Any | None:
+    settings = get_settings()
+    if not settings.ocr_enabled:
+        return None
+
+    try:
+        import easyocr
+    except Exception as exc:
+        logger.warning("EasyOCR is not available: %s", exc)
+        return None
+
+    try:
+        return easyocr.Reader(_ocr_languages(), gpu=settings.ocr_gpu)
+    except Exception as exc:
+        logger.warning("Failed to initialize EasyOCR: %s", exc)
+        return None
+
+
+def _render_ocr_image(
+    page: fitz.Page,
+    document_id: str,
+    page_number: int,
+    zoom: float,
+) -> Path:
+    image_path = get_settings().ocr_pages_root / document_id / f"page_{page_number}.png"
+    image_path.parent.mkdir(parents=True, exist_ok=True)
+    if image_path.exists():
+        return image_path
+
+    pixmap = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom), alpha=False)
+    pixmap.save(image_path)
+    return image_path
+
+
+def _run_easyocr(image_path: Path) -> list[OcrTextItem]:
+    reader = _get_easyocr_reader()
+    if reader is None:
+        return []
+
+    try:
+        raw_result = reader.readtext(str(image_path), detail=1, paragraph=False)
+        return _parse_easyocr_result(raw_result)
+    except Exception as exc:
+        logger.warning("EasyOCR failed for %s: %s", image_path, exc)
+        return []
+
+
+def _parse_easyocr_result(raw_result: Any) -> list[OcrTextItem]:
+    if not raw_result:
+        return []
+
+    items: list[OcrTextItem] = []
+    for candidate in raw_result:
+        parsed_item = _parse_easyocr_candidate(candidate)
+        if parsed_item is not None:
+            items.append(parsed_item)
+
+    return items
+
+
+def _parse_easyocr_candidate(candidate: Any) -> OcrTextItem | None:
+    if not isinstance(candidate, (list, tuple)) or len(candidate) < 3:
+        return None
+
+    box = candidate[0]
+    text = str(candidate[1])
+    score = 0.0
+    try:
+        score = float(candidate[2])
+    except (TypeError, ValueError):
+        score = 0.0
+
+    return _build_ocr_item(text, score, box)
+
+
+def _build_ocr_item(text: str, score: float, box: Any) -> OcrTextItem | None:
+    normalized = normalize_text(text)
+    if not normalized:
+        return None
+
+    try:
+        if hasattr(box, "tolist"):
+            box = box.tolist()
+
+        if isinstance(box, (list, tuple)) and len(box) == 4 and all(isinstance(value, (int, float)) for value in box):
+            x0, y0, x1, y1 = [float(value) for value in box]
+        else:
+            xs = [float(point[0]) for point in box]
+            ys = [float(point[1]) for point in box]
+            x0, y0, x1, y1 = min(xs), min(ys), max(xs), max(ys)
+    except (TypeError, ValueError, IndexError):
+        return None
+
+    return OcrTextItem(text=normalized, score=score, bbox=(x0, y0, x1, y1))
+
+
+def _ocr_items_to_paragraphs(items: list[OcrTextItem], zoom: float) -> list[ExtractedParagraph]:
+    if not items:
+        return []
+
+    lines = [
+        TextLine(
+            text=item.text,
+            bbox=(
+                item.bbox[0] / zoom,
+                item.bbox[1] / zoom,
+                item.bbox[2] / zoom,
+                item.bbox[3] / zoom,
+            ),
+        )
+        for item in items
+    ]
+    lines.sort(key=lambda line: (line.y0, line.x0))
+
+    rows: list[list[TextLine]] = []
+    for line in lines:
+        if not rows:
+            rows.append([line])
+            continue
+
+        previous_row = rows[-1]
+        previous_center = sum((item.y0 + item.y1) / 2 for item in previous_row) / len(previous_row)
+        line_center = (line.y0 + line.y1) / 2
+        row_height = max(max(item.height for item in previous_row), line.height)
+
+        if abs(line_center - previous_center) <= row_height * 0.65:
+            previous_row.append(line)
+        else:
+            rows.append([line])
+
+    paragraphs: list[ExtractedParagraph] = []
+    for row in rows:
+        row.sort(key=lambda line: line.x0)
+        text = normalize_text(" ".join(line.text for line in row))
+        if text:
+            paragraphs.append(ExtractedParagraph(text=text, rects=[line.bbox for line in row], section_title=OCR_SOURCE_TITLE))
+
+    return paragraphs
+
+
+def _extract_ocr_paragraphs(
+    page: fitz.Page,
+    document_id: str,
+    page_number: int,
+) -> list[ExtractedParagraph]:
+    settings = get_settings()
+    if not settings.ocr_enabled:
+        return []
+
+    image_path = _render_ocr_image(page, document_id, page_number, settings.ocr_zoom)
+    ocr_items = _run_easyocr(image_path)
+    return _ocr_items_to_paragraphs(ocr_items, settings.ocr_zoom)
+
+
 def _assign_section_titles(paragraphs: list[ExtractedParagraph]) -> list[ExtractedParagraph]:
     current_section_title: str | None = None
     assigned: list[ExtractedParagraph] = []
@@ -209,6 +386,8 @@ def _assign_section_titles(paragraphs: list[ExtractedParagraph]) -> list[Extract
         is_section_title = _looks_like_section_title(paragraph.text)
         if is_section_title:
             current_section_title = paragraph.text
+        elif paragraph.section_title:
+            current_section_title = paragraph.section_title
 
         assigned.append(
             ExtractedParagraph(
@@ -319,7 +498,14 @@ def ingest_pdf(file_name: str, file_bytes: bytes, output_path: Path) -> Document
         for page_index in range(pdf.page_count):
             page = pdf.load_page(page_index)
             page_number = page_index + 1
-            extracted_paragraphs = _assign_section_titles(_merge_short_paragraphs(_extract_page_paragraphs(page)))
+            extracted_paragraphs = _merge_short_paragraphs(_extract_page_paragraphs(page))
+            page_text = normalize_text(" ".join(paragraph.text for paragraph in extracted_paragraphs))
+            if len(page_text) < get_settings().ocr_min_text_chars:
+                ocr_paragraphs = _extract_ocr_paragraphs(page, document_id, page_number)
+                if ocr_paragraphs:
+                    extracted_paragraphs = _merge_short_paragraphs(ocr_paragraphs)
+
+            extracted_paragraphs = _assign_section_titles(extracted_paragraphs)
             _write_debug_page_text(output_path, file_name, page_number, extracted_paragraphs)
             page_paragraphs = [paragraph.text for paragraph in extracted_paragraphs]
             chunks.extend(_build_page_chunks(document_id, file_name, page_number, extracted_paragraphs))
