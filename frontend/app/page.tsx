@@ -27,6 +27,7 @@ type Source = {
   fileName: string;
   pageNumber: number;
   paragraphIndex: number;
+  paragraphEndIndex: number;
   locationLabel: string;
   excerpt: string;
   score: number;
@@ -775,7 +776,11 @@ function ViewerPane({
               <div className="pdf-page-inner" style={pageTextStyle}>
                 <div className="pdf-heading">Page {page.pageNumber}</div>
                 {page.paragraphs.map((paragraph, index) => {
-                  const highlighted = isActiveSourcePage && selectedSource?.paragraphIndex === index + 1;
+                  const paragraphNumber = index + 1;
+                  const highlighted =
+                    isActiveSourcePage &&
+                    paragraphNumber >= selectedSource.paragraphIndex &&
+                    paragraphNumber <= selectedSource.paragraphEndIndex;
                   return (
                     <p key={`${page.pageNumber}-${index}`} className="pdf-paragraph" data-highlight={highlighted}>
                       {paragraph}
