@@ -320,6 +320,11 @@ a {
   box-shadow: var(--shadow-sm);
 }
 
+.doc-row:focus-visible {
+  outline: 2px solid color-mix(in oklch, var(--accent) 55%, white);
+  outline-offset: 2px;
+}
+
 .doc-icon {
   width: 36px;
   height: 44px;

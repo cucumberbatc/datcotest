@@ -440,12 +440,19 @@ export default function HomePage() {
 
         <div className="doc-list">
           {documents.map((document) => (
-            <button
+            <div
               key={document.id}
               className="doc-row"
               data-active={activeDocId === document.id}
               onClick={() => void openDocument(document.id)}
-              type="button"
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  void openDocument(document.id);
+                }
+              }}
+              role="button"
+              tabIndex={0}
             >
               <div className="doc-icon">PDF</div>
               <div className="doc-body">
@@ -468,7 +475,7 @@ export default function HomePage() {
               >
                 <CloseIcon />
               </button>
-            </button>
+            </div>
           ))}
         </div>
 
