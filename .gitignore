@@ -11,3 +11,4 @@ design-index.html
 design-index.decoded.html
 pdf-chat-agent/
 .DS_Store
+*/.env
