@@ -107,9 +107,18 @@ type ChatMessage = UserMessage | AssistantMessage;
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000/api";
 const API_ORIGIN = API_BASE.replace(/\/api$/, "");
+const LEFT_PANE_WIDTH = 280;
+const VIEWER_MIN_WIDTH = 520;
+const VIEWER_DEFAULT_WIDTH = 960;
+const CENTER_MIN_WIDTH = 420;
+const SPLITTER_WIDTH = 12;
 
 function apiUrl(path: string) {
   return path.startsWith("http") ? path : `${API_ORIGIN}${path}`;
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
 }
 
 function formatBytes(bytes: number) {
@@ -155,6 +164,7 @@ function renderAnswer(answer: string, activeCitation: number | null, onActivateC
 }
 
 export default function HomePage() {
+  const appShellRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const chatBodyRef = useRef<HTMLDivElement | null>(null);
   const [documents, setDocuments] = useState<DocumentSummary[]>([]);
@@ -171,6 +181,10 @@ export default function HomePage() {
   const [toast, setToast] = useState<string | null>(null);
   const [debugResult, setDebugResult] = useState<DebugRetrieveResult | null>(null);
   const [showDebugModal, setShowDebugModal] = useState(false);
+  const [viewerBaseWidth, setViewerBaseWidth] = useState(VIEWER_DEFAULT_WIDTH);
+  const [viewerZoom, setViewerZoom] = useState(100);
+  const [shellWidth, setShellWidth] = useState(0);
+  const [resizingViewer, setResizingViewer] = useState(false);
 
   const modalOverlayStyle: CSSProperties = {
     position: "fixed",
@@ -245,9 +259,27 @@ export default function HomePage() {
 
   const activeDocument = viewerDocId ? documentCache[viewerDocId] : null;
   const firstRun = documents.length === 0 && !uploading;
+  const viewerZoomMultiplier = viewerZoom > 100 ? 1 + ((viewerZoom - 100) / 100) * 0.8 : 1;
+  const maxViewerWidth = Math.max(VIEWER_MIN_WIDTH, shellWidth - LEFT_PANE_WIDTH - SPLITTER_WIDTH - CENTER_MIN_WIDTH);
+  const viewerPaneWidth = clamp(Math.round(viewerBaseWidth * viewerZoomMultiplier), VIEWER_MIN_WIDTH, maxViewerWidth);
+  const isStackedLayout = shellWidth > 0 && shellWidth <= 1100;
 
   useEffect(() => {
     void loadDocuments();
+  }, []);
+
+  useEffect(() => {
+    if (!appShellRef.current) {
+      return;
+    }
+
+    const shell = appShellRef.current;
+    const updateShellWidth = () => setShellWidth(shell.clientWidth);
+    updateShellWidth();
+
+    const observer = new ResizeObserver(updateShellWidth);
+    observer.observe(shell);
+    return () => observer.disconnect();
   }, []);
 
   useEffect(() => {
@@ -267,6 +299,42 @@ export default function HomePage() {
       behavior: "smooth"
     });
   }, [messages]);
+
+  useEffect(() => {
+    if (!resizingViewer) {
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      return;
+    }
+
+    function handlePointerMove(event: PointerEvent) {
+      if (!appShellRef.current) {
+        return;
+      }
+
+      const rect = appShellRef.current.getBoundingClientRect();
+      const desiredWidth = rect.right - event.clientX;
+      setViewerBaseWidth(clamp(Math.round(desiredWidth / viewerZoomMultiplier), VIEWER_MIN_WIDTH, maxViewerWidth));
+    }
+
+    function stopResizing() {
+      setResizingViewer(false);
+    }
+
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", stopResizing);
+    window.addEventListener("pointercancel", stopResizing);
+
+    return () => {
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", stopResizing);
+      window.removeEventListener("pointercancel", stopResizing);
+    };
+  }, [maxViewerWidth, resizingViewer, viewerZoomMultiplier]);
 
   async function loadDocuments() {
     const response = await fetch(`${API_BASE}/documents`, {
@@ -522,7 +590,16 @@ export default function HomePage() {
   }
 
   return (
-    <div className="app-shell">
+    <div
+      ref={appShellRef}
+      className="app-shell"
+      style={
+        {
+          "--viewer-pane-width": `${viewerPaneWidth}px`,
+          "--viewer-splitter-width": `${isStackedLayout ? 0 : SPLITTER_WIDTH}px`
+        } as CSSProperties
+      }
+    >
       <input
         ref={fileInputRef}
         className="visually-hidden"
@@ -536,20 +613,9 @@ export default function HomePage() {
         <div className="brand">
           <div className="brand-mark">A</div>
           <div>
-            <div className="brand-name">Atlas</div>
-            <div className="brand-tag">Grounded PDF Assistant</div>
+            <div className="brand-name">DocQ</div>
+
           </div>
-        </div>
-        <div className="topbar-meta">
-          <span>Grounded Q&A</span>
-          <span className="sep">/</span>
-          <span>OpenAI + LangChain + PyMuPDF</span>
-        </div>
-        <div className="topbar-actions">
-          <button className="btn btn-ghost" onClick={() => fileInputRef.current?.click()} type="button">
-            <UploadIcon />
-            PDF 업로드
-          </button>
         </div>
       </header>
 
@@ -660,7 +726,6 @@ export default function HomePage() {
         <div className="chat-body" ref={chatBodyRef}>
           {firstRun ? (
             <section className="empty-state">
-              <div className="empty-badge">Atlas</div>
               <h1>먼저 PDF를 업로드해 주세요</h1>
               <p>
                 여러 개의 PDF를 업로드한 뒤 질문하면, 답변과 함께 파일명, 페이지 번호, 문단 위치까지
@@ -679,7 +744,6 @@ export default function HomePage() {
             </section>
           ) : messages.length === 0 ? (
             <section className="empty-state">
-              <div className="empty-badge">Workspace</div>
               <h1>업로드한 문서에 물어보세요</h1>
               <p>
                 질문을 입력하면 검색된 근거 문단을 바탕으로 답변을 생성하고, 우측 패널에서 관련 페이지와
@@ -824,10 +888,67 @@ export default function HomePage() {
         </div>
       </main>
 
+      <div
+        aria-hidden={isStackedLayout}
+        className="pane-splitter"
+        data-active={resizingViewer}
+        onPointerDown={(event) => {
+          if (isStackedLayout) {
+            return;
+          }
+          event.preventDefault();
+          setResizingViewer(true);
+        }}
+        onKeyDown={(event) => {
+          if (isStackedLayout) {
+            return;
+          }
+          if (event.key === "ArrowLeft") {
+            event.preventDefault();
+            setViewerBaseWidth((current) => clamp(current + 32, VIEWER_MIN_WIDTH, maxViewerWidth));
+          }
+          if (event.key === "ArrowRight") {
+            event.preventDefault();
+            setViewerBaseWidth((current) => clamp(current - 32, VIEWER_MIN_WIDTH, maxViewerWidth));
+          }
+        }}
+        role="separator"
+        tabIndex={isStackedLayout ? -1 : 0}
+      />
+
       <aside className="pane pane-right">
         <div className="pane-header">
           <div className="pane-title">Source viewer</div>
-          {activeDocument ? (
+          <div className="pane-actions viewer-header-actions">
+            <div className="viewer-toolbar-group">
+              <button
+                className="icon-btn"
+                disabled={!activeDocument || viewerZoom <= 100}
+                onClick={() => setViewerZoom((current) => Math.max(50, current - 10))}
+                type="button"
+              >
+                -
+              </button>
+              <span className="viewer-header-zoom-label">{viewerZoom}%</span>
+              <button
+                className="icon-btn"
+                disabled={!activeDocument}
+                onClick={() => setViewerZoom((current) => Math.min(220, current + 10))}
+                type="button"
+              >
+                +
+              </button>
+              <button className="btn btn-ghost viewer-fit-btn" disabled={!activeDocument} onClick={() => setViewerZoom(100)} type="button">
+                Fit
+              </button>
+            </div>
+            {activeDocument ? (
+              <a className="btn btn-ghost viewer-header-link" href={apiUrl(activeDocument.downloadUrl)} rel="noreferrer" target="_blank">
+                원본 PDF
+              </a>
+            ) : null}
+          </div>
+          {false && activeDocument ? (
             <a className="btn btn-ghost" href={apiUrl(activeDocument.downloadUrl)} rel="noreferrer" target="_blank">
               원본 PDF
             </a>
@@ -836,12 +957,19 @@ export default function HomePage() {
 
         {!activeDocument ? (
           <div className="viewer-empty">
-            <div className="viewer-empty-box" />
             <strong>출처를 선택하면 여기에 열립니다</strong>
+            <button className="btn" onClick={() => fileInputRef.current?.click()} type="button">
+              <UploadIcon />
+              PDF 업로드
+            </button>
             <p>좌측 문서를 클릭하거나 답변의 출처 카드를 선택해 보세요.</p>
           </div>
         ) : (
-          <ViewerPane document={activeDocument} selectedSource={selectedSource} />
+          <ViewerPane
+            document={activeDocument}
+            imageZoom={viewerZoom}
+            selectedSource={selectedSource}
+          />
         )}
       </aside>
 
@@ -886,13 +1014,14 @@ export default function HomePage() {
 
 function ViewerPane({
   document,
+  imageZoom,
   selectedSource
 }: {
   document: DocumentDetail;
+  imageZoom: number;
   selectedSource: Source | null;
 }) {
   const imgRef = useRef<HTMLImageElement | null>(null);
-  const [imageZoom, setImageZoom] = useState(100);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageMetadata, setPageMetadata] = useState<PageMetadata | null>(null);
   const [highlightMetadata, setHighlightMetadata] = useState<HighlightMetadata | null>(null);
@@ -1016,31 +1145,8 @@ function ViewerPane({
     setCurrentPage((pageNumber) => Math.min(document.pageCount, pageNumber + 1));
   }
 
-  function zoomOut() {
-    setImageZoom((current) => Math.max(50, current - 10));
-  }
-
-  function zoomIn() {
-    setImageZoom((current) => Math.min(220, current + 10));
-  }
-
   return (
     <>
-      <div className="viewer-toolbar">
-        <div className="viewer-toolbar-group">
-          <button className="icon-btn" onClick={zoomOut} type="button">
-            -
-          </button>
-          <span>{imageZoom}%</span>
-          <button className="icon-btn" onClick={zoomIn} type="button">
-            +
-          </button>
-          <button className="btn btn-ghost viewer-fit-btn" onClick={() => setImageZoom(100)} type="button">
-            Fit
-          </button>
-        </div>
-      </div>
-
       <div className="viewer-canvas">
         <div className="viewer-stage">
           <button
