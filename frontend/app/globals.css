@@ -838,6 +838,7 @@ a {
   min-height: 0;
   overflow: auto;
   padding: 18px;
+  position: relative;
 }
 
 .viewer-page-shell {
@@ -850,16 +851,19 @@ a {
 .viewer-stage {
   width: min(100%, 1320px);
   margin: 0 auto;
-  display: grid;
-  grid-template-columns: 44px minmax(0, 1fr) 44px;
-  gap: 12px;
-  align-items: stretch;
+  position: relative;
 }
 
 .viewer-side-nav {
+  position: absolute;
+  top: 50%;
+  z-index: 4;
   border: 0;
+  width: 44px;
+  height: 88px;
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.96);
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(12px);
   color: var(--ink-2);
   cursor: pointer;
   display: flex;
@@ -868,7 +872,16 @@ a {
   font-family: var(--font-mono);
   font-size: 18px;
   box-shadow: var(--shadow-sm);
+  transform: translateY(-50%);
   transition: background-color 160ms ease, color 160ms ease;
+}
+
+.viewer-side-nav-prev {
+  left: 18px;
+}
+
+.viewer-side-nav-next {
+  right: 18px;
 }
 
 .viewer-side-nav:hover {
@@ -980,13 +993,18 @@ a {
 }
 
 @media (max-width: 720px) {
-  .viewer-stage {
-    grid-template-columns: 36px minmax(0, 1fr) 36px;
-    gap: 8px;
+  .viewer-side-nav {
+    width: 36px;
+    height: 72px;
+    border-radius: 14px;
   }
 
-  .viewer-side-nav {
-    border-radius: 14px;
+  .viewer-side-nav-prev {
+    left: 10px;
+  }
+
+  .viewer-side-nav-next {
+    right: 10px;
   }
 }
 

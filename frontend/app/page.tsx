@@ -1148,17 +1148,27 @@ function ViewerPane({
   return (
     <>
       <div className="viewer-canvas">
-        <div className="viewer-stage">
-          <button
-            aria-label="Previous page"
-            className="viewer-side-nav"
-            disabled={!canGoPrev}
-            onClick={goToPrevPage}
-            type="button"
-          >
-            <span>&lt;</span>
-          </button>
+        <button
+          aria-label="Previous page"
+          className="viewer-side-nav viewer-side-nav-prev"
+          disabled={!canGoPrev}
+          onClick={goToPrevPage}
+          type="button"
+        >
+          <span>&lt;</span>
+        </button>
 
+        <button
+          aria-label="Next page"
+          className="viewer-side-nav viewer-side-nav-next"
+          disabled={!canGoNext}
+          onClick={goToNextPage}
+          type="button"
+        >
+          <span>&gt;</span>
+        </button>
+
+        <div className="viewer-stage">
           <div className="viewer-page-shell">
             <div className="pdf-page image-page" data-active={isActiveSourcePage} style={{ width: `${imageZoom}%` }}>
               {viewerError ? <div className="viewer-error">{viewerError}</div> : null}
@@ -1202,16 +1212,6 @@ function ViewerPane({
               </div>
             </div>
           </div>
-
-          <button
-            aria-label="Next page"
-            className="viewer-side-nav"
-            disabled={!canGoNext}
-            onClick={goToNextPage}
-            type="button"
-          >
-            <span>&gt;</span>
-          </button>
         </div>
 
         <div className="viewer-pagination">
