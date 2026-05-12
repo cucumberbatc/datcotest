@@ -17,6 +17,8 @@ paddleocr = ">=3.2,<4.0"
 numpy = "==1.26.4"
 kiwipiepy = "*"
 rank-bm25 = "*"
+sentence-transformers = "*"
+torch = "*"
 
 [dev-packages]
 
