@@ -112,14 +112,23 @@ class RagService:
             payload = self._fallback_answer(source_candidates)
 
         if payload.no_evidence:
-            return AskResponse(
-                question=question,
-                answer="",
-                noEvidence=True,
-                noEvidenceNote=payload.no_evidence_reason or self._no_evidence_note(len(scoped_documents)),
-                sources=[],
-                elapsedMs=int((perf_counter() - started_at) * 1000),
-            )
+            strong_score = getattr(settings, "rag_strong_evidence_score", 0.65)
+            if source_candidates and source_candidates[0].score >= strong_score:
+                logger.info(
+                    "LLM no_evidence overridden by grounded fallback: top_score=%.4f threshold=%.4f",
+                    source_candidates[0].score,
+                    strong_score,
+                )
+                payload = self._fallback_grounded_answer(question, source_candidates)
+            else:
+                return AskResponse(
+                    question=question,
+                    answer="",
+                    noEvidence=True,
+                    noEvidenceNote=payload.no_evidence_reason or self._no_evidence_note(len(scoped_documents)),
+                    sources=[],
+                    elapsedMs=int((perf_counter() - started_at) * 1000),
+                )
 
         selected_numbers = set(payload.citations or [1])
         selected_sources = [
@@ -362,6 +371,35 @@ class RagService:
 
         return LlmAnswerPayload(
             answer=" ".join(sentences),
+            citations=[source.citationNumber for source in chosen],
+            no_evidence=False,
+            no_evidence_reason=None,
+        )
+
+    def _fallback_grounded_answer(
+        self,
+        question: str,
+        sources: list[SourceResponse],
+    ) -> LlmAnswerPayload:
+        del question
+        chosen = sources[: min(2, len(sources))]
+        if not chosen:
+            return LlmAnswerPayload(
+                answer="",
+                citations=[],
+                no_evidence=True,
+                no_evidence_reason=self._no_evidence_note(0),
+            )
+
+        answer = (
+            "검색된 문서 근거에서는 다음 내용을 확인할 수 있습니다.\n"
+            + "\n".join(
+                f"- {source.excerpt} [{source.citationNumber}]"
+                for source in chosen
+            )
+        )
+        return LlmAnswerPayload(
+            answer=answer,
             citations=[source.citationNumber for source in chosen],
             no_evidence=False,
             no_evidence_reason=None,

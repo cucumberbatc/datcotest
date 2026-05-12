@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     rag_retrieval_k: int = 6
     rag_answer_top_k: int = 3
     rag_min_score: float = 0.0
+    rag_strong_evidence_score: float = 0.65
     ocr_enabled: bool = True
     ocr_languages: str = "ko,en"
     ocr_zoom: float = 1.5
