@@ -613,10 +613,96 @@ a {
   font-size: 14px;
   line-height: 1.7;
   color: var(--ink-2);
+  overflow-wrap: anywhere;
 }
 
 .answer-text.streaming {
   min-height: 74px;
+}
+
+.answer-text > :first-child {
+  margin-top: 0;
+}
+
+.answer-text > :last-child {
+  margin-bottom: 0;
+}
+
+.answer-text p,
+.answer-text ul,
+.answer-text ol,
+.answer-text pre,
+.answer-text blockquote {
+  margin: 0 0 12px;
+}
+
+.answer-text h1,
+.answer-text h2,
+.answer-text h3,
+.answer-text h4,
+.answer-text h5,
+.answer-text h6 {
+  margin: 0 0 10px;
+  line-height: 1.35;
+  color: var(--ink);
+}
+
+.answer-text h1 {
+  font-size: 22px;
+}
+
+.answer-text h2 {
+  font-size: 19px;
+}
+
+.answer-text h3 {
+  font-size: 17px;
+}
+
+.answer-text ul,
+.answer-text ol {
+  padding-left: 22px;
+}
+
+.answer-text li + li {
+  margin-top: 6px;
+}
+
+.answer-text blockquote {
+  padding: 10px 14px;
+  border-left: 3px solid rgba(23, 103, 255, 0.3);
+  background: rgba(23, 103, 255, 0.05);
+  color: var(--ink-2);
+}
+
+.answer-text pre {
+  overflow: auto;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #0f172a;
+  color: #e2e8f0;
+}
+
+.answer-text code {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+}
+
+.answer-text :not(pre) > code {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.08);
+  color: var(--ink);
+}
+
+.answer-link {
+  color: var(--accent-2);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.answer-link:hover {
+  color: var(--accent);
 }
 
 .cite {
