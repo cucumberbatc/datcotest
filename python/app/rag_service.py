@@ -158,7 +158,7 @@ class RagService:
             for index, (chunk, score) in enumerate(retrieved)
         ]
         if settings.openai_api_key:
-            payload = self._answer_with_llm(question, source_candidates)
+            payload = self._answer_with_llm(question, source_candidates, scoped_documents)
         else:
             payload = self._fallback_answer(source_candidates)
 
@@ -203,7 +203,13 @@ class RagService:
             return [question]
         
         prompt = ChatPromptTemplate.from_messages([
-            ("system", "당신은 AI 검색 어시스턴트입니다. 사용자의 질문을 분석하여, 검색 엔진에서 문서를 찾기 좋은 형태의 다양한 동의어/유사 질문으로 3개를 만들어주세요. 원본 질문과 의미가 같아야 하며, 검색 키워드가 다채로워야 합니다. 결과는 줄바꿈으로 구분된 텍스트로 반환하세요. 번호 매기기나 추가 설명은 하지 마세요."),
+            ("system", (
+                "당신은 RAG 시스템의 검색어 최적화 에이전트입니다. 사용자의 질문을 바탕으로, 검색 엔진(Vector 및 Keyword)이 문서를 잘 찾을 수 있도록 다음을 유추하여 3줄로 생성하세요.\n"
+                "1. 가상의 답변 문장 (HyDE): 문서에 실제로 적혀있을 법한 1~2문장의 평서문 답변.\n"
+                "2. 관련 문서 메타데이터 유추: 질문에 답하기 위해 문서에 포함되어 있을 법한 항목명 (예: 누가 작성했는지 묻는다면 팀명, 소속, 저자 등 유추)\n"
+                "3. 핵심 검색 키워드 나열\n"
+                "하드코딩된 규칙 없이, 질문의 맥락을 파악해 가장 그럴싸한 문서 내용을 상상해서 작성하세요. 줄바꿈으로만 구분하고 번호는 매기지 마세요."
+            )),
             ("human", "{question}")
         ])
         llm = ChatOpenAI(api_key=settings.openai_api_key, model=settings.openai_chat_model, temperature=0.3)
@@ -674,6 +680,7 @@ class RagService:
         self,
         question: str,
         sources: list[SourceResponse],
+        scoped_documents: list[DocumentRecord],
     ) -> LlmAnswerPayload:
         settings = self._settings()
         llm = ChatOpenAI(
@@ -682,7 +689,19 @@ class RagService:
             temperature=settings.openai_temperature,
         ).with_structured_output(LlmAnswerPayload, method="json_schema")
 
-        context = "\n\n".join(
+        meta_context = []
+        if len(scoped_documents) <= 3:
+            for doc in scoped_documents:
+                if doc.chunks:
+                    first_chunk = doc.chunks[0]
+                    clean_text = self._abbreviate(first_chunk.text, 400, preserve_newlines=False)
+                    meta_context.append(f"[Document Global Info - {doc.file_name}]: {clean_text}")
+
+        meta_text = "\n".join(meta_context)
+        if meta_text:
+            meta_text = f"--- 문서 기본 정보 (검색 결과와 무관하게 항상 제공됨) ---\n{meta_text}\n------------------------------------------------\n\n"
+
+        retrieved_context = "\n\n".join(
             (
                 f"[{source.citationNumber}] file={source.fileName} "
                 f"page={source.pageNumber} "
@@ -692,6 +711,8 @@ class RagService:
             )
             for source in sources
         )
+        
+        context = meta_text + retrieved_context
         self._log_llm_context(question, context)
         prompt = ChatPromptTemplate.from_messages(
             [
