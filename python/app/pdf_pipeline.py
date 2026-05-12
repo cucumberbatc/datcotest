@@ -139,6 +139,59 @@ def _looks_like_section_title(text: str) -> bool:
     return len(normalized.split()) <= 5 and len(normalized) <= 32
 
 
+def _looks_like_section_title(text: str) -> bool:
+    normalized = normalize_text(text)
+    if not 2 <= len(normalized) <= 80:
+        return False
+
+    if normalized.endswith((".", "?", "!", ",", ";", ":")):
+        return False
+
+    if re.search(r"[.!?]\s+", normalized):
+        return False
+
+    if re.match(r"^(\d+(\.\d+)*[.)]?\s+|[IVX]+[.)]\s+|[#]+)\S+", normalized, re.IGNORECASE):
+        return True
+
+    if re.match(r"^(chapter|section|part|appendix|overview|summary|agenda|team|members?)\b", normalized, re.IGNORECASE):
+        return True
+
+    if ":" in normalized and len(normalized.split()) <= 4:
+        return True
+
+    title_keywords = (
+        "개요",
+        "소개",
+        "요약",
+        "목적",
+        "배경",
+        "범위",
+        "대상",
+        "일정",
+        "내용",
+        "구성",
+        "참가자",
+        "참여자",
+        "팀원",
+        "구성원",
+        "결과",
+        "문의",
+        "예산",
+        "산출물",
+        "프로젝트",
+        "overview",
+        "summary",
+        "background",
+        "scope",
+        "members",
+        "participants",
+    )
+    if any(keyword.lower() in normalized.lower() for keyword in title_keywords) and len(normalized.split()) <= 8:
+        return True
+
+    return len(normalized.split()) <= 6 and len(normalized) <= 40
+
+
 def _is_hangul(char: str) -> bool:
     return bool(re.match(r"[\uAC00-\uD7A3]", char))
 

@@ -20,6 +20,7 @@ ALNUM_HANGUL_RE = re.compile(r"[^0-9A-Za-z\uAC00-\uD7A3]+")
 BRACKET_LABEL_RE = re.compile(r"^\[[^\]]+\]")
 logger = logging.getLogger("rag.retrieval")
 SOURCE_EXCERPT_CHARS = 2200
+LLM_SOURCE_CONTEXT_CHARS = 3000
 KOREAN_PARTICLE_SUFFIXES = (
     "이라고",
     "라고",
@@ -281,11 +282,14 @@ class RagService:
         context = "\n\n".join(
             (
                 f"[{source.citationNumber}] file={source.fileName} "
-                f"page={source.pageNumber} paragraph={source.paragraphIndex}\n"
-                f"{source.excerpt}"
+                f"page={source.pageNumber} "
+                f"paragraph={source.paragraphIndex}-{source.paragraphEndIndex} "
+                f"score={source.score}\n"
+                f"{self._source_context_for_llm(source)}"
             )
             for source in sources
         )
+        self._log_llm_context(question, context)
         prompt = ChatPromptTemplate.from_messages(
             [
                 (
@@ -306,9 +310,25 @@ class RagService:
         )
 
         payload = llm.invoke(prompt.format_messages(question=question, context=context))
+        self._log_llm_payload(payload)
         if not payload.answer and not payload.no_evidence:
             return self._fallback_answer(sources)
         return payload
+
+    def _source_context_for_llm(self, source: SourceResponse) -> str:
+        chunk = store.get_chunk(source.chunkId)
+        if chunk is None:
+            return source.excerpt
+
+        chunk_text = chunk.text
+        if chunk.section_title and not chunk_text.startswith("Section:"):
+            chunk_text = f"Section: {chunk.section_title}\n\n{chunk_text}"
+
+        return self._abbreviate(
+            chunk_text,
+            LLM_SOURCE_CONTEXT_CHARS,
+            preserve_newlines=True,
+        )
 
     def _fallback_answer(self, sources: list[SourceResponse]) -> LlmAnswerPayload:
         settings = self._settings()
@@ -405,6 +425,32 @@ class RagService:
                 chunk.id,
                 preview,
             )
+
+    def _log_llm_context(self, question: str, context: str) -> None:
+        settings = self._settings()
+        if not getattr(settings, "rag_debug", True):
+            return
+
+        logger.info("========== LLM CONTEXT ==========")
+        logger.info("question=%s", question)
+        logger.info("context_chars=%s", len(context))
+        logger.info(
+            "context_preview=%s",
+            self._abbreviate(context, 1200, preserve_newlines=False),
+        )
+
+    def _log_llm_payload(self, payload: LlmAnswerPayload) -> None:
+        settings = self._settings()
+        if not getattr(settings, "rag_debug", True):
+            return
+
+        logger.info(
+            "LLM payload: no_evidence=%s citations=%s answer_preview=%s reason=%s",
+            payload.no_evidence,
+            payload.citations,
+            self._abbreviate(payload.answer or "", 300, preserve_newlines=False),
+            payload.no_evidence_reason,
+        )
 
     def _best_evidence_span(self, question: str, chunk: ChunkRecord) -> tuple[int, int, str]:
         document = store.get_document(chunk.document_id)
