@@ -63,7 +63,7 @@ class RagService:
         embedding = self._embeddings()
         documents = [
             Document(
-                page_content=chunk.text,
+                page_content=self._embedding_search_text(chunk.text),
                 metadata={
                     "chunk_id": chunk.id,
                     "document_id": chunk.document_id,
@@ -156,7 +156,7 @@ class RagService:
             return lexical_hits[:answer_top_k]
 
         raw_hits = vector_store.similarity_search_with_score(
-            question,
+            self._embedding_search_text(question),
             k=max(retrieval_k * 3, 15),
         )
 
@@ -205,36 +205,35 @@ class RagService:
         scoped_documents: list[DocumentRecord],
     ) -> list[tuple[ChunkRecord, float]]:
         settings = self._settings()
-        query_tokens = self._tokenize(question)
-        if not query_tokens:
+        query_terms = self._search_terms(question)
+        query_token_set = set(query_terms)
+        if not query_token_set:
             return []
 
-        query_token_set = set(query_tokens)
         query_compact = self._compact_text(question)
-        query_terms = self._query_terms(question)
+        query_ngrams = self._search_ngrams(question)
         ranked: list[tuple[ChunkRecord, float]] = []
         for document in scoped_documents:
             for chunk in document.chunks:
-                chunk_tokens = self._tokenize(chunk.text)
-                chunk_token_set = set(chunk_tokens)
+                chunk_token_set = set(self._search_terms(chunk.text))
                 overlap = len(query_token_set & chunk_token_set)
                 compact_bonus = self._compact_match_score(query_compact, query_terms, chunk.text)
+                ngram_score = self._ngram_match_score(query_ngrams, chunk.text)
 
                 token_score = overlap / max(len(query_token_set), 1) if overlap > 0 else 0.0
-                if token_score == 0 and compact_bonus == 0:
+                if token_score == 0 and compact_bonus == 0 and ngram_score == 0:
                     continue
 
-                if compact_bonus > token_score:
-                    score = compact_bonus * 1.2
-                else:
-                    score = max(token_score, compact_bonus)
+                score = max(token_score, compact_bonus, ngram_score)
+                if compact_bonus > 0 and ngram_score > 0:
+                    score = max(score, min(1.0, compact_bonus + (ngram_score * 0.2)))
 
                 if any(char.isdigit() for char in question) and any(char.isdigit() for char in chunk.text):
                     score += 0.15
                 ranked.append((chunk, score))
 
         ranked.sort(key=lambda item: item[1], reverse=True)
-        return ranked[: settings.rag_answer_top_k]
+        return ranked[: max(settings.rag_answer_top_k, settings.rag_retrieval_k)]
 
     def _merge_retrieval_hits(
         self,
@@ -418,16 +417,23 @@ class RagService:
         if start > end:
             return chunk.paragraph_index, chunk.paragraph_index, chunk.text
 
-        query_tokens = set(self._tokenize(question))
+        query_terms = self._search_terms(question)
+        query_tokens = set(query_terms)
         query_compact = self._compact_text(question)
-        query_terms = self._query_terms(question)
+        query_ngrams = self._search_ngrams(question)
 
         best_index = start
         best_score = -1.0
         scored_paragraphs: list[tuple[int, float]] = []
         for paragraph_index in range(start, end + 1):
             paragraph = page.paragraphs[paragraph_index - 1]
-            paragraph_score = self._paragraph_match_score(query_tokens, query_compact, query_terms, paragraph)
+            paragraph_score = self._paragraph_match_score(
+                query_tokens,
+                query_compact,
+                query_terms,
+                query_ngrams,
+                paragraph,
+            )
             scored_paragraphs.append((paragraph_index, paragraph_score))
             if paragraph_score > best_score:
                 best_score = paragraph_score
@@ -466,12 +472,14 @@ class RagService:
         query_tokens: set[str],
         query_compact: str,
         query_terms: list[str],
+        query_ngrams: set[str],
         paragraph: str,
     ) -> float:
-        paragraph_tokens = set(self._tokenize(paragraph))
+        paragraph_tokens = set(self._search_terms(paragraph))
         overlap_score = len(query_tokens & paragraph_tokens) / max(len(query_tokens), 1)
         compact_score = self._compact_match_score(query_compact, query_terms, paragraph)
-        return max(overlap_score, compact_score)
+        ngram_score = self._ngram_match_score(query_ngrams, paragraph)
+        return max(overlap_score, compact_score, ngram_score)
 
     def _should_include_neighboring_context(
         self,
@@ -595,6 +603,28 @@ class RagService:
             terms.add(compact)
         return [term for term in terms if len(term) > 1]
 
+    @classmethod
+    def _search_terms(cls, text: str) -> list[str]:
+        return sorted(set(cls._query_terms(text)), key=lambda term: (-len(term), term))
+
+    @classmethod
+    def _embedding_search_text(cls, text: str) -> str:
+        normalized = re.sub(r"\s+", " ", text).strip()
+        search_terms = cls._search_terms(text)
+        search_ngrams = sorted(cls._search_ngrams(text), key=lambda term: (-len(term), term))
+        variants = [normalized] if normalized else []
+
+        if search_terms:
+            variants.append(" ".join(search_terms))
+        if search_ngrams:
+            variants.append(" ".join(search_ngrams[:24]))
+
+        compact = cls._compact_text(text)
+        if compact and compact not in variants:
+            variants.append(compact)
+
+        return "\n".join(dict.fromkeys(variants))
+
     @staticmethod
     def _strip_korean_particle(term: str) -> str:
         if not HANGUL_RE.search(term):
@@ -605,6 +635,64 @@ class RagService:
                 return term[: -len(suffix)]
 
         return term
+
+    @classmethod
+    def _search_ngrams(cls, text: str) -> set[str]:
+        variants: set[str] = set()
+        compact_text = cls._compact_text(text)
+        if compact_text:
+            variants.add(compact_text)
+
+        for token in TOKEN_RE.findall(text):
+            compact_token = cls._compact_text(token)
+            if not compact_token:
+                continue
+            variants.add(compact_token)
+            stripped_token = cls._strip_korean_particle(compact_token)
+            if stripped_token:
+                variants.add(stripped_token)
+
+        ngrams: set[str] = set()
+        for variant in variants:
+            if len(variant) < 2:
+                continue
+            if len(variant) <= 3:
+                ngrams.add(variant)
+
+            max_n = min(4, len(variant))
+            for n in range(2, max_n + 1):
+                for index in range(len(variant) - n + 1):
+                    ngrams.add(variant[index : index + n])
+
+        return ngrams
+
+    @classmethod
+    def _ngram_match_score(cls, query_ngrams: set[str], chunk_text: str) -> float:
+        if not query_ngrams:
+            return 0.0
+
+        chunk_ngrams = cls._search_ngrams(chunk_text)
+        if not chunk_ngrams:
+            return 0.0
+
+        matched = query_ngrams & chunk_ngrams
+        if not matched:
+            return 0.0
+
+        weighted_total = sum(len(term) for term in query_ngrams)
+        weighted_matched = sum(len(term) for term in matched)
+        weighted_coverage = weighted_matched / max(weighted_total, 1)
+        longest_match = max(len(term) for term in matched)
+
+        base_score = 0.0
+        if longest_match >= 4:
+            base_score = 0.72
+        elif longest_match == 3:
+            base_score = 0.56
+        elif longest_match == 2:
+            base_score = 0.32
+
+        return min(base_score + (weighted_coverage * 0.35), 0.92)
 
     @classmethod
     def _compact_match_score(cls, query_compact: str, query_terms: list[str], chunk_text: str) -> float:

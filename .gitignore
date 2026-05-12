@@ -5,6 +5,7 @@ backend/backend-storage
 backend-storage
 python/.venv
 python/__pycache__
+./pyc
 python/.pytest_cache
 python/storage
 design-index.html
