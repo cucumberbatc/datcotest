@@ -295,17 +295,31 @@ class RagService:
                 (
                     "system",
                     (
-                        "You are a PDF-grounded question-answering assistant. "
-                        "Use only the supplied context. Do not infer facts outside the context. "
-                        "The context may come from OCR, so spacing and a few characters can be noisy. "
-                        "For table-like context, read nearby row text together because labels and values may be split. "
-                        "Treat common OCR confusions in numeric values carefully, such as O/o read instead of 0. "
-                        "If the requested fact is still clearly present, answer from that evidence. "
-                        "If the context is insufficient, set no_evidence=true. "
-                        "Answer in Korean. Include only the citation numbers actually used."
+                        "당신은 PDF 문서 기반 질의응답 assistant입니다. "
+                        "반드시 제공된 Context 안의 내용만 사용하세요. "
+                        "Context에는 검색 점수가 높은 근거 후보들이 들어 있습니다. "
+                        "질문과 직접적으로 관련된 문장, 표 행, OCR 텍스트가 하나라도 있으면 "
+                        "그 근거를 바탕으로 가능한 범위에서 답변하세요. "
+                        "표 형태의 문맥은 같은 줄 또는 인접 줄을 함께 읽으세요. "
+                        "OCR 텍스트는 띄어쓰기와 일부 문자가 부정확할 수 있습니다. "
+                        "문맥상 명확한 경우에는 보수적으로 해석해 답변하세요. "
+                        "근거가 일부만 있으면 확인 가능한 범위까지만 답변하세요. "
+                        "단, Context에 질문과 관련된 사실이 전혀 없을 때만 no_evidence=true로 설정하세요. "
+                        "답변은 한국어로 작성하고, citations에는 실제로 사용한 근거 번호만 넣으세요."
                     ),
                 ),
-                ("human", "Question:\n{question}\n\nContext:\n{context}"),
+                (
+                    "human",
+                    (
+                        "질문:\n{question}\n\n"
+                        "Context:\n{context}\n\n"
+                        "작업 지시:\n"
+                        "1. 질문과 관련 있는 근거 문장이나 표 행을 찾으세요.\n"
+                        "2. 관련 근거가 있으면 no_evidence=false로 두고 답변하세요.\n"
+                        "3. 근거가 일부만 있으면 확인 가능한 범위까지만 답변하세요.\n"
+                        "4. 정말 관련 근거가 하나도 없을 때만 no_evidence=true로 두세요."
+                    ),
+                ),
             ]
         )
 
