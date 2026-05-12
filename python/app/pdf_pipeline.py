@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import json
 import logging
 import re
 import uuid
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from functools import lru_cache
@@ -224,22 +226,54 @@ def _ocr_languages() -> list[str]:
 
 
 @lru_cache(maxsize=1)
-def _get_easyocr_reader() -> Any | None:
+def _get_paddleocr_reader() -> Any | None:
     settings = get_settings()
     if not settings.ocr_enabled:
         return None
 
     try:
-        import easyocr
+        from paddleocr import PaddleOCR
     except Exception as exc:
-        logger.warning("EasyOCR is not available: %s", exc)
+        logger.warning("PaddleOCR is not available: %s", exc)
         return None
 
     try:
-        return easyocr.Reader(_ocr_languages(), gpu=settings.ocr_gpu)
+        return PaddleOCR(
+            lang=_paddleocr_language(),
+            ocr_version=settings.ocr_version,
+            device="gpu:0" if settings.ocr_gpu else "cpu",
+            text_detection_model_name=settings.ocr_det_model_name,
+            text_recognition_model_name=settings.ocr_rec_model_name,
+            cpu_threads=settings.ocr_cpu_threads,
+            use_doc_orientation_classify=False,
+            use_doc_unwarping=False,
+            use_textline_orientation=False,
+        )
     except Exception as exc:
-        logger.warning("Failed to initialize EasyOCR: %s", exc)
+        logger.warning("Failed to initialize PaddleOCR: %s", exc)
         return None
+
+
+def _paddleocr_language() -> str:
+    aliases = {
+        "ko": "korean",
+        "korean": "korean",
+        "kr": "korean",
+        "en": "en",
+        "english": "en",
+        "ch": "ch",
+        "zh": "ch",
+        "chinese": "ch",
+        "japan": "japan",
+        "ja": "japan",
+        "japanese": "japan",
+    }
+    normalized = [aliases.get(language.lower(), language.lower()) for language in _ocr_languages()]
+    if "korean" in normalized:
+        return "korean"
+    if "en" in normalized:
+        return "en"
+    return normalized[0] if normalized else "korean"
 
 
 def _render_ocr_image(
@@ -258,45 +292,113 @@ def _render_ocr_image(
     return image_path
 
 
-def _run_easyocr(image_path: Path) -> list[OcrTextItem]:
-    reader = _get_easyocr_reader()
+def _run_paddleocr(image_path: Path) -> list[OcrTextItem]:
+    reader = _get_paddleocr_reader()
     if reader is None:
         return []
 
     try:
-        raw_result = reader.readtext(str(image_path), detail=1, paragraph=False)
-        return _parse_easyocr_result(raw_result)
+        raw_result = reader.predict(str(image_path))
+        return _parse_paddleocr_result(raw_result)
     except Exception as exc:
-        logger.warning("EasyOCR failed for %s: %s", image_path, exc)
+        logger.warning("PaddleOCR failed for %s: %s", image_path, exc)
         return []
 
 
-def _parse_easyocr_result(raw_result: Any) -> list[OcrTextItem]:
+def _parse_paddleocr_result(raw_result: Any) -> list[OcrTextItem]:
     if not raw_result:
         return []
 
     items: list[OcrTextItem] = []
-    for candidate in raw_result:
-        parsed_item = _parse_easyocr_candidate(candidate)
-        if parsed_item is not None:
-            items.append(parsed_item)
+    for candidate in _iter_paddle_results(raw_result):
+        payload = _paddle_result_payload(candidate)
+        parsed_items = _parse_paddleocr_payload(payload)
+        if parsed_items:
+            items.extend(parsed_items)
 
     return items
 
 
-def _parse_easyocr_candidate(candidate: Any) -> OcrTextItem | None:
-    if not isinstance(candidate, (list, tuple)) or len(candidate) < 3:
-        return None
+def _iter_paddle_results(raw_result: Any) -> Iterable[Any]:
+    if isinstance(raw_result, Iterable) and not isinstance(raw_result, (dict, str, bytes)):
+        return raw_result
+    return [raw_result]
 
-    box = candidate[0]
-    text = str(candidate[1])
-    score = 0.0
+
+def _paddle_result_payload(candidate: Any) -> Any:
+    if isinstance(candidate, dict):
+        return candidate.get("res", candidate)
+
+    for attribute_name in ("res", "json"):
+        value = getattr(candidate, attribute_name, None)
+        if value is None:
+            continue
+        if isinstance(value, str):
+            try:
+                parsed = json.loads(value)
+            except json.JSONDecodeError:
+                continue
+            return parsed.get("res", parsed)
+        if isinstance(value, dict):
+            return value.get("res", value)
+
+    return candidate
+
+
+def _parse_paddleocr_payload(payload: Any) -> list[OcrTextItem]:
+    texts = _paddle_field(payload, "rec_texts")
+    boxes = _first_paddle_field(payload, "rec_boxes", "rec_polys", "dt_polys")
+    scores = _paddle_field(payload, "rec_scores")
+
+    if _has_items(texts) and _has_items(boxes):
+        items: list[OcrTextItem] = []
+        for index, text in enumerate(texts):
+            if index >= len(boxes):
+                break
+            score = scores[index] if _has_items(scores) and index < len(scores) else 0.0
+            parsed_item = _build_ocr_item(str(text), _safe_float(score), boxes[index])
+            if parsed_item is not None:
+                items.append(parsed_item)
+        return items
+
+    text = _paddle_field(payload, "rec_text")
+    if text is None:
+        return []
+
+    box = _first_paddle_field(payload, "rec_box", "rec_poly", "dt_poly")
+    score = _safe_float(_paddle_field(payload, "rec_score"))
+    parsed_item = _build_ocr_item(str(text), score, box)
+    return [parsed_item] if parsed_item is not None else []
+
+
+def _paddle_field(payload: Any, key: str) -> Any:
+    if isinstance(payload, dict):
+        return payload.get(key)
+    return getattr(payload, key, None)
+
+
+def _first_paddle_field(payload: Any, *keys: str) -> Any:
+    for key in keys:
+        value = _paddle_field(payload, key)
+        if value is not None:
+            return value
+    return None
+
+
+def _has_items(value: Any) -> bool:
+    if value is None:
+        return False
     try:
-        score = float(candidate[2])
-    except (TypeError, ValueError):
-        score = 0.0
+        return len(value) > 0
+    except TypeError:
+        return True
 
-    return _build_ocr_item(text, score, box)
+
+def _safe_float(value: Any) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return 0.0
 
 
 def _build_ocr_item(text: str, score: float, box: Any) -> OcrTextItem | None:
@@ -374,7 +476,7 @@ def _extract_ocr_paragraphs(
         return []
 
     image_path = _render_ocr_image(page, document_id, page_number, settings.ocr_zoom)
-    ocr_items = _run_easyocr(image_path)
+    ocr_items = _run_paddleocr(image_path)
     return _ocr_items_to_paragraphs(ocr_items, settings.ocr_zoom)
 
 

@@ -26,9 +26,13 @@ class Settings(BaseSettings):
     rag_min_score: float = 0.0
     ocr_enabled: bool = True
     ocr_languages: str = "ko,en"
-    ocr_zoom: float = 2.0
+    ocr_zoom: float = 1.5
     ocr_min_text_chars: int = 40
     ocr_gpu: bool = False
+    ocr_version: str = "PP-OCRv5"
+    ocr_det_model_name: str = "PP-OCRv5_mobile_det"
+    ocr_rec_model_name: str = "korean_PP-OCRv5_mobile_rec"
+    ocr_cpu_threads: int = 8
 
     @property
     def storage_root(self) -> Path:

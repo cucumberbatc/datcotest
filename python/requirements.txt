@@ -8,4 +8,4 @@ langchain-community>=0.3,<0.4
 faiss-cpu>=1.8,<2.0
 PyMuPDF>=1.24,<2.0
 numpy==1.26.4
-easyocr==1.7.2
+paddleocr>=3.2,<4.0

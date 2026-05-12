@@ -3,6 +3,8 @@ from __future__ import annotations
 import mimetypes
 import uuid
 import logging
+from contextlib import contextmanager
+from threading import Lock
 
 from fastapi import FastAPI, File, HTTPException, Query, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -44,6 +46,20 @@ settings.uploads_root.mkdir(parents=True, exist_ok=True)
 settings.highlights_root.mkdir(parents=True, exist_ok=True)
 settings.page_images_root.mkdir(parents=True, exist_ok=True)
 settings.ocr_pages_root.mkdir(parents=True, exist_ok=True)
+document_processing_lock = Lock()
+
+
+@contextmanager
+def acquire_document_processing() -> None:
+    if not document_processing_lock.acquire(blocking=False):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Another document upload or delete is currently being processed. Please try again after it finishes.",
+        )
+    try:
+        yield
+    finally:
+        document_processing_lock.release()
 
 
 def to_summary(document: DocumentRecord) -> DocumentSummaryResponse:
@@ -92,23 +108,24 @@ def list_documents() -> list[DocumentSummaryResponse]:
 async def upload_documents(files: list[UploadFile] = File(...)) -> UploadResponse:
     uploaded: list[DocumentSummaryResponse] = []
 
-    for file in files:
-        if not file.filename:
-            continue
-        if not file.filename.lower().endswith(".pdf"):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Only PDF uploads are supported: {file.filename}",
-            )
+    with acquire_document_processing():
+        for file in files:
+            if not file.filename:
+                continue
+            if not file.filename.lower().endswith(".pdf"):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Only PDF uploads are supported: {file.filename}",
+                )
 
-        content = await file.read()
-        safe_name = sanitize_filename(file.filename)
-        output_path = settings.uploads_root / f"{uuid.uuid4().hex}-{safe_name}"
-        document = ingest_pdf(file.filename, content, output_path)
-        store.upsert_document(document)
-        uploaded.append(to_summary(document))
+            content = await file.read()
+            safe_name = sanitize_filename(file.filename)
+            output_path = settings.uploads_root / f"{uuid.uuid4().hex}-{safe_name}"
+            document = ingest_pdf(file.filename, content, output_path)
+            store.upsert_document(document)
+            uploaded.append(to_summary(document))
 
-    rag_service.rebuild_index()
+        rag_service.rebuild_index()
     return UploadResponse(documents=uploaded)
 
 
@@ -119,29 +136,30 @@ def get_document(document_id: str) -> DocumentDetailResponse:
 
 @app.delete(f"{settings.api_prefix}/documents/{{document_id}}")
 def delete_document(document_id: str) -> dict[str, bool]:
-    document = store.remove_document(document_id)
-    if not document:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found.")
+    with acquire_document_processing():
+        document = store.remove_document(document_id)
+        if not document:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found.")
 
-    if document.file_path.exists():
-        document.file_path.unlink()
+        if document.file_path.exists():
+            document.file_path.unlink()
 
-    for file in settings.highlights_root.glob(f"{document_id}-*.pdf"):
-        file.unlink(missing_ok=True)
-
-    page_image_dir = settings.page_images_root / document_id
-    if page_image_dir.exists():
-        for file in page_image_dir.glob("*.png"):
+        for file in settings.highlights_root.glob(f"{document_id}-*.pdf"):
             file.unlink(missing_ok=True)
-        page_image_dir.rmdir()
 
-    ocr_page_dir = settings.ocr_pages_root / document_id
-    if ocr_page_dir.exists():
-        for file in ocr_page_dir.glob("*.png"):
-            file.unlink(missing_ok=True)
-        ocr_page_dir.rmdir()
+        page_image_dir = settings.page_images_root / document_id
+        if page_image_dir.exists():
+            for file in page_image_dir.glob("*.png"):
+                file.unlink(missing_ok=True)
+            page_image_dir.rmdir()
 
-    rag_service.rebuild_index()
+        ocr_page_dir = settings.ocr_pages_root / document_id
+        if ocr_page_dir.exists():
+            for file in ocr_page_dir.glob("*.png"):
+                file.unlink(missing_ok=True)
+            ocr_page_dir.rmdir()
+
+        rag_service.rebuild_index()
     return {"ok": True}
 
 

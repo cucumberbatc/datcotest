@@ -332,6 +332,11 @@ a {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
 }
 
+.upload-zone[data-disabled="true"] {
+  opacity: 0.56;
+  cursor: not-allowed;
+}
+
 .upload-zone-title {
   font-size: 13px;
   font-weight: 600;
@@ -534,6 +539,13 @@ a {
   transform: translateY(-2px);
   border-color: rgba(23, 103, 255, 0.18);
   box-shadow: var(--shadow);
+}
+
+.suggest-card:disabled {
+  opacity: 0.56;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: var(--shadow-sm);
 }
 
 .static-card {

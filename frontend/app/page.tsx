@@ -378,6 +378,11 @@ export default function HomePage() {
   }
 
   async function handleUpload(files: FileList | null) {
+    if (uploading) {
+      setToast("업로드가 진행 중입니다. 현재 문서 처리가 끝난 뒤 다시 시도해 주세요.");
+      return;
+    }
+
     if (!files || files.length === 0) {
       return;
     }
@@ -392,7 +397,7 @@ export default function HomePage() {
         body: formData
       });
       if (!response.ok) {
-        throw new Error(await response.text());
+        throw new Error(await readErrorMessage(response));
       }
 
       setToast(`${files.length}개 PDF 업로드 및 인덱싱이 완료되었습니다.`);
@@ -430,6 +435,20 @@ export default function HomePage() {
     } catch (error) {
       setToast(error instanceof Error ? error.message : "문서 삭제에 실패했습니다.");
     }
+  }
+
+  async function readErrorMessage(response: Response) {
+    try {
+      const payload = (await response.json()) as { detail?: string };
+      if (payload?.detail) {
+        return payload.detail;
+      }
+    } catch {
+      // fall back to text
+    }
+
+    const detail = await response.text();
+    return detail || "요청 처리 중 오류가 발생했습니다.";
   }
 
   async function openDocument(documentId: string) {
@@ -605,6 +624,7 @@ export default function HomePage() {
         className="visually-hidden"
         type="file"
         accept="application/pdf,.pdf"
+        disabled={uploading}
         multiple
         onChange={(event) => void handleUpload(event.target.files)}
       />
@@ -625,17 +645,30 @@ export default function HomePage() {
             Documents
             <span className="pill">{documents.length}</span>
           </div>
-          <button className="icon-btn" onClick={() => fileInputRef.current?.click()} type="button">
+          <button className="icon-btn" disabled={uploading} onClick={() => fileInputRef.current?.click()} type="button">
             <PlusIcon />
           </button>
         </div>
 
         <div
           className="upload-zone"
-          onClick={() => fileInputRef.current?.click()}
-          onDragOver={(event) => event.preventDefault()}
+          data-disabled={uploading}
+          onClick={() => {
+            if (!uploading) {
+              fileInputRef.current?.click();
+            }
+          }}
+          onDragOver={(event) => {
+            event.preventDefault();
+            if (uploading) {
+              return;
+            }
+          }}
           onDrop={(event) => {
             event.preventDefault();
+            if (uploading) {
+              return;
+            }
             void handleUpload(event.dataTransfer.files);
           }}
         >
@@ -672,6 +705,7 @@ export default function HomePage() {
               </div>
               <button
                 className="icon-btn subtle"
+                disabled={uploading}
                 onClick={(event) => {
                   event.stopPropagation();
                   void handleDelete(document.id);
@@ -732,7 +766,7 @@ export default function HomePage() {
                 함께 제시합니다.
               </p>
               <div className="suggest-grid">
-                <button className="suggest-card" onClick={() => fileInputRef.current?.click()} type="button">
+                <button className="suggest-card" disabled={uploading} onClick={() => fileInputRef.current?.click()} type="button">
                   <strong>PDF 업로드 시작</strong>
                   <span>여러 문서를 한 번에 올리고 바로 인덱싱할 수 있습니다.</span>
                 </button>
@@ -781,7 +815,7 @@ export default function HomePage() {
                         <div className="no-evidence-title">문서에서 확인 불가</div>
                         <p>{message.noEvidenceNote}</p>
                         <div className="card-actions">
-                          <button className="btn" onClick={() => fileInputRef.current?.click()} type="button">
+                          <button className="btn" disabled={uploading} onClick={() => fileInputRef.current?.click()} type="button">
                             <UploadIcon />
                             관련 문서 추가
                           </button>
@@ -958,7 +992,7 @@ export default function HomePage() {
         {!activeDocument ? (
           <div className="viewer-empty">
             <strong>출처를 선택하면 여기에 열립니다</strong>
-            <button className="btn" onClick={() => fileInputRef.current?.click()} type="button">
+            <button className="btn" disabled={uploading} onClick={() => fileInputRef.current?.click()} type="button">
               <UploadIcon />
               PDF 업로드
             </button>

@@ -10,7 +10,7 @@ This folder contains the Python service for real RAG and PDF highlighting.
   - `OpenAIEmbeddings`
   - `FAISS`
 - `PyMuPDF (fitz)` for PDF text extraction, page image rendering, and highlight generation
-- `EasyOCR` for scanned/image-only PDF fallback OCR
+- `PaddleOCR` for scanned/image-only PDF fallback OCR
 - `pipenv` for dependency and virtual environment management
 
 ## Why split this into a separate Python service
@@ -33,22 +33,66 @@ copy .env.example .env
 pipenv run uvicorn app.main:app --reload --port 8000
 ```
 
+## PaddleOCR CPU install
+
+For CPU-only environments, install PaddlePaddle first in the project virtual environment, then install the rest of the app dependencies.
+
+Official PaddleOCR docs recommend installing `paddlepaddle` before `paddleocr`.
+
+```bash
+cd python
+pipenv install
+pipenv run python -m pip install paddlepaddle==3.2.0 -i https://www.paddlepaddle.org.cn/packages/stable/cpu/
+pipenv run python -m pip install paddleocr
+```
+
+If you prefer to install from `requirements.txt` after that:
+
+```bash
+cd python
+pipenv run python -m pip install -r requirements.txt
+```
+
+Then refresh the lockfile:
+
+```bash
+cd python
+pipenv lock
+```
+
 ## OCR Model Warmup
 
-EasyOCR downloads its model files the first time it is initialized. To avoid making the first scanned-PDF upload feel slow, run this once during local setup:
+PaddleOCR downloads its model files the first time it is initialized. To avoid making the first scanned-PDF upload feel slow, run this once during local setup:
 
 ```bash
 cd python
 pipenv run python scripts/warmup_ocr.py
 ```
 
-This creates a tiny sample image, initializes EasyOCR, runs one OCR prediction, and leaves the downloaded model files in EasyOCR's local cache. Later PDF uploads reuse the cached models.
+This creates a tiny sample image, initializes PaddleOCR, runs one OCR prediction, and leaves the downloaded model files in PaddleOCR's local cache. Later PDF uploads reuse the cached models.
+
+## OCR model selection
+
+The service does not inspect each uploaded PDF and auto-pick a different OCR model per document. The OCR model choice is fixed at startup from environment settings and reused for every OCR fallback page.
+
+For CPU-first setups, the defaults are pinned to lighter mobile models:
+
+```text
+OCR_VERSION=PP-OCRv5
+OCR_DET_MODEL_NAME=PP-OCRv5_mobile_det
+OCR_REC_MODEL_NAME=korean_PP-OCRv5_mobile_rec
+OCR_CPU_THREADS=8
+OCR_ZOOM=1.5
+```
+
+If you want to try a different fixed combination later, change these values in `.env` and restart the Python service.
 
 Recommended OCR-related versions:
 
 ```text
 numpy==1.26.4
-easyocr==1.7.2
+paddlepaddle==3.2.0
+paddleocr>=3.2,<4.0
 ```
 
 If you want to open a shell first:
@@ -92,11 +136,13 @@ NEXT_PUBLIC_API_BASE=http://localhost:8000/api
 
 ## Notes
 
-- `Pipfile` and `Pipfile.lock` are now the source of truth for dependencies.
+- `Pipfile` is updated for the PaddleOCR swap. After installing the new OCR dependencies, regenerate `Pipfile.lock` with `pipenv lock`.
 - `requirements.txt` is kept as a plain reference/export-style list, but day-to-day install should use `pipenv install`.
 - If `OPENAI_API_KEY` is not set, the service falls back to a non-LLM extractive answer path.
-- OCR runs only as a fallback when a page has very little embedded text. Configure it with `OCR_ENABLED`, `OCR_LANGUAGES`, `OCR_ZOOM`, `OCR_MIN_TEXT_CHARS`, and `OCR_GPU`.
-- EasyOCR language codes use values such as `ko,en`. Keep `OCR_GPU=false` for a simple CPU-only setup.
+- OCR runs only as a fallback when a page has very little embedded text. It does not enable PP-Structure or table-structure parsing; it only uses OCR text detection/recognition and then feeds bbox-based row grouping into the existing pipeline.
+- Configure OCR with `OCR_ENABLED`, `OCR_LANGUAGES`, `OCR_ZOOM`, `OCR_MIN_TEXT_CHARS`, `OCR_GPU`, `OCR_VERSION`, `OCR_DET_MODEL_NAME`, `OCR_REC_MODEL_NAME`, and `OCR_CPU_THREADS`.
+- `OCR_LANGUAGES=ko,en` is supported. Internally this maps to PaddleOCR's Korean OCR pipeline, which also covers English text well for this fallback use case.
+- Keep `OCR_GPU=false` for a simple CPU-only setup.
 
 ## Next improvements
 
