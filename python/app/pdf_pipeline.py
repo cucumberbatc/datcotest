@@ -18,6 +18,7 @@ from app.config import get_settings
 from app.store import ChunkRecord, DocumentRecord, PageRecord
 
 BLOCK_TEXT = 0
+BLOCK_IMAGE = 1
 WHITESPACE = re.compile(r"\s+")
 CHUNK_TARGET_CHARS = 800
 CHUNK_MAX_CHARS = 1200
@@ -25,6 +26,7 @@ CHUNK_OVERLAP_CHARS = 150
 MIN_PARAGRAPH_CHARS = 40
 DEBUG_EXTRACTED_TEXT = True
 OCR_SOURCE_TITLE = "OCR extracted text"
+LARGE_IMAGE_AREA_RATIO = 0.08
 logger = logging.getLogger(__name__)
 
 
@@ -65,6 +67,20 @@ class OcrTextItem:
     bbox: tuple[float, float, float, float]
 
 
+@dataclass(slots=True)
+class OcrParseResult:
+    items: list[OcrTextItem]
+    raw_payloads: list[Any]
+
+
+@dataclass(slots=True)
+class OcrPageResult:
+    items: list[OcrTextItem]
+    row_paragraphs: list[ExtractedParagraph]
+    raw_block_paragraphs: list[ExtractedParagraph]
+    raw_payloads: list[Any]
+
+
 def sanitize_filename(name: str) -> str:
     safe = re.sub(r"[^a-zA-Z0-9._-]", "_", name)
     return safe or "document.pdf"
@@ -96,6 +112,22 @@ def _extract_page_lines(page: fitz.Page) -> list[TextLine]:
             lines.append(TextLine(text=text, bbox=(float(x0), float(y0), float(x1), float(y1))))
 
     return lines
+
+
+def _has_large_image_block(page: fitz.Page) -> bool:
+    page_dict = page.get_text("dict", sort=True)
+    page_area = max(float(page.rect.width) * float(page.rect.height), 1.0)
+
+    for block in page_dict.get("blocks", []):
+        if block.get("type") != BLOCK_IMAGE:
+            continue
+
+        x0, y0, x1, y1 = block.get("bbox", (0.0, 0.0, 0.0, 0.0))
+        area = max(float(x1) - float(x0), 0.0) * max(float(y1) - float(y0), 0.0)
+        if area / page_area >= LARGE_IMAGE_AREA_RATIO:
+            return True
+
+    return False
 
 
 def _is_list_marker(text: str) -> bool:
@@ -345,31 +377,32 @@ def _render_ocr_image(
     return image_path
 
 
-def _run_paddleocr(image_path: Path) -> list[OcrTextItem]:
+def _run_paddleocr(image_path: Path) -> OcrParseResult:
     reader = _get_paddleocr_reader()
     if reader is None:
-        return []
+        return OcrParseResult(items=[], raw_payloads=[])
 
     try:
         raw_result = reader.predict(str(image_path))
         return _parse_paddleocr_result(raw_result)
     except Exception as exc:
         logger.warning("PaddleOCR failed for %s: %s", image_path, exc)
-        return []
+        return OcrParseResult(items=[], raw_payloads=[])
 
-
-def _parse_paddleocr_result(raw_result: Any) -> list[OcrTextItem]:
+def _parse_paddleocr_result(raw_result: Any) -> OcrParseResult:
     if not raw_result:
-        return []
+        return OcrParseResult(items=[], raw_payloads=[])
 
     items: list[OcrTextItem] = []
+    raw_payloads: list[Any] = []
     for candidate in _iter_paddle_results(raw_result):
         payload = _paddle_result_payload(candidate)
+        raw_payloads.append(_json_safe(payload))
         parsed_items = _parse_paddleocr_payload(payload)
         if parsed_items:
             items.extend(parsed_items)
 
-    return items
+    return OcrParseResult(items=items, raw_payloads=raw_payloads)
 
 
 def _iter_paddle_results(raw_result: Any) -> Iterable[Any]:
@@ -475,6 +508,31 @@ def _build_ocr_item(text: str, score: float, box: Any) -> OcrTextItem | None:
     return OcrTextItem(text=normalized, score=score, bbox=(x0, y0, x1, y1))
 
 
+def _filter_ocr_items(items: list[OcrTextItem]) -> list[OcrTextItem]:
+    threshold = get_settings().ocr_confidence_threshold
+    return [item for item in items if item.score >= threshold]
+
+
+def _ocr_items_to_raw_block_paragraphs(items: list[OcrTextItem], zoom: float) -> list[ExtractedParagraph]:
+    paragraphs: list[ExtractedParagraph] = []
+    for item in sorted(items, key=lambda candidate: (candidate.bbox[1], candidate.bbox[0])):
+        paragraphs.append(
+            ExtractedParagraph(
+                text=item.text,
+                rects=[
+                    (
+                        item.bbox[0] / zoom,
+                        item.bbox[1] / zoom,
+                        item.bbox[2] / zoom,
+                        item.bbox[3] / zoom,
+                    )
+                ],
+                section_title=OCR_SOURCE_TITLE,
+            )
+        )
+    return paragraphs
+
+
 def _ocr_items_to_paragraphs(items: list[OcrTextItem], zoom: float) -> list[ExtractedParagraph]:
     if not items:
         return []
@@ -523,14 +581,25 @@ def _extract_ocr_paragraphs(
     page: fitz.Page,
     document_id: str,
     page_number: int,
-) -> list[ExtractedParagraph]:
+) -> OcrPageResult:
     settings = get_settings()
     if not settings.ocr_enabled:
-        return []
+        return OcrPageResult(
+            items=[],
+            row_paragraphs=[],
+            raw_block_paragraphs=[],
+            raw_payloads=[],
+        )
 
     image_path = _render_ocr_image(page, document_id, page_number, settings.ocr_zoom)
-    ocr_items = _run_paddleocr(image_path)
-    return _ocr_items_to_paragraphs(ocr_items, settings.ocr_zoom)
+    parsed = _run_paddleocr(image_path)
+    filtered_items = _filter_ocr_items(parsed.items)
+    return OcrPageResult(
+        items=filtered_items,
+        row_paragraphs=_ocr_items_to_paragraphs(filtered_items, settings.ocr_zoom),
+        raw_block_paragraphs=_ocr_items_to_raw_block_paragraphs(filtered_items, settings.ocr_zoom),
+        raw_payloads=parsed.raw_payloads,
+    )
 
 
 def _assign_section_titles(paragraphs: list[ExtractedParagraph]) -> list[ExtractedParagraph]:
@@ -538,8 +607,11 @@ def _assign_section_titles(paragraphs: list[ExtractedParagraph]) -> list[Extract
     assigned: list[ExtractedParagraph] = []
 
     for paragraph in paragraphs:
-        is_section_title = _looks_like_section_title(paragraph.text)
-        if is_section_title:
+        is_ocr_content = paragraph.section_title == OCR_SOURCE_TITLE
+        is_section_title = not is_ocr_content and _looks_like_section_title(paragraph.text)
+        if is_ocr_content:
+            current_section_title = OCR_SOURCE_TITLE
+        elif is_section_title:
             current_section_title = paragraph.text
         elif paragraph.section_title:
             current_section_title = paragraph.section_title
@@ -633,6 +705,47 @@ def _chunk_text_with_section(text: str, section_title: str | None) -> str:
     return f"Section: {section_title}\n\n{text}"
 
 
+def _merge_paragraph_sources(*paragraph_groups: list[ExtractedParagraph]) -> list[ExtractedParagraph]:
+    merged: list[ExtractedParagraph] = []
+    seen_texts: set[str] = set()
+
+    for group in paragraph_groups:
+        for paragraph in group:
+            normalized_text = normalize_text(paragraph.text)
+            if not normalized_text:
+                continue
+
+            signature = normalized_text.casefold()
+            if signature in seen_texts:
+                continue
+
+            seen_texts.add(signature)
+            merged.append(
+                ExtractedParagraph(
+                    text=normalized_text,
+                    rects=paragraph.rects,
+                    section_title=paragraph.section_title,
+                    is_section_title=paragraph.is_section_title,
+                )
+            )
+
+    return merged
+
+
+def _paragraph_char_count(paragraphs: list[ExtractedParagraph]) -> int:
+    return len(normalize_text(" ".join(paragraph.text for paragraph in paragraphs)))
+
+
+def _json_safe(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {str(key): _json_safe(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(item) for item in value]
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    return str(value)
+
+
 def ingest_pdf(file_name: str, file_bytes: bytes, output_path: Path) -> DocumentRecord:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_bytes(file_bytes)
@@ -653,15 +766,55 @@ def ingest_pdf(file_name: str, file_bytes: bytes, output_path: Path) -> Document
         for page_index in range(pdf.page_count):
             page = pdf.load_page(page_index)
             page_number = page_index + 1
-            extracted_paragraphs = _merge_short_paragraphs(_extract_page_paragraphs(page))
-            page_text = normalize_text(" ".join(paragraph.text for paragraph in extracted_paragraphs))
-            if len(page_text) < get_settings().ocr_min_text_chars:
-                ocr_paragraphs = _extract_ocr_paragraphs(page, document_id, page_number)
-                if ocr_paragraphs:
-                    extracted_paragraphs = _merge_short_paragraphs(ocr_paragraphs)
+            settings = get_settings()
+            native_paragraphs = _merge_short_paragraphs(_extract_page_paragraphs(page))
+            pymupdf_text_chars = _paragraph_char_count(native_paragraphs)
+            has_large_image = _has_large_image_block(page)
+            ocr_triggered = settings.ocr_enabled and (
+                pymupdf_text_chars < settings.ocr_min_text_chars or has_large_image
+            )
+
+            ocr_result = OcrPageResult(
+                items=[],
+                row_paragraphs=[],
+                raw_block_paragraphs=[],
+                raw_payloads=[],
+            )
+            extracted_paragraphs = native_paragraphs
+
+            if ocr_triggered:
+                ocr_result = _extract_ocr_paragraphs(page, document_id, page_number)
+                extracted_paragraphs = _merge_short_paragraphs(
+                    _merge_paragraph_sources(
+                        native_paragraphs,
+                        ocr_result.row_paragraphs,
+                        ocr_result.raw_block_paragraphs,
+                    )
+                )
 
             extracted_paragraphs = _assign_section_titles(extracted_paragraphs)
+            ocr_text_chars = _paragraph_char_count(
+                _merge_paragraph_sources(ocr_result.row_paragraphs, ocr_result.raw_block_paragraphs)
+            )
+            logger.info(
+                "page=%s pymupdf_text_chars=%s has_large_image=%s ocr_triggered=%s ocr_result_count=%s ocr_text_chars=%s",
+                page_number,
+                pymupdf_text_chars,
+                has_large_image,
+                ocr_triggered,
+                len(ocr_result.items),
+                ocr_text_chars,
+            )
             _write_debug_page_text(output_path, file_name, page_number, extracted_paragraphs)
+            _write_debug_ocr_result(
+                output_path=output_path,
+                file_name=file_name,
+                page_number=page_number,
+                pymupdf_text_chars=pymupdf_text_chars,
+                has_large_image=has_large_image,
+                ocr_triggered=ocr_triggered,
+                ocr_result=ocr_result,
+            )
             page_paragraphs = [paragraph.text for paragraph in extracted_paragraphs]
             chunks.extend(_build_page_chunks(document_id, file_name, page_number, extracted_paragraphs))
             pages.append(PageRecord(page_number=page_index + 1, paragraphs=page_paragraphs))
@@ -792,3 +945,62 @@ def _write_debug_page_text(
         for index, paragraph in enumerate(paragraphs)
     )
     debug_file.write_text(content, encoding="utf-8")
+
+
+def _write_debug_ocr_result(
+    output_path: Path,
+    file_name: str,
+    page_number: int,
+    pymupdf_text_chars: int,
+    has_large_image: bool,
+    ocr_triggered: bool,
+    ocr_result: OcrPageResult,
+) -> None:
+    if not DEBUG_EXTRACTED_TEXT:
+        return
+
+    debug_dir = output_path.parent.parent / "debug_ocr"
+    debug_dir.mkdir(parents=True, exist_ok=True)
+
+    safe_name = sanitize_filename(file_name)
+    json_file = debug_dir / f"{safe_name}_page_{page_number}.json"
+    txt_file = debug_dir / f"{safe_name}_page_{page_number}.txt"
+
+    row_texts = [paragraph.text for paragraph in ocr_result.row_paragraphs]
+    raw_block_texts = [paragraph.text for paragraph in ocr_result.raw_block_paragraphs]
+    ocr_text_chars = _paragraph_char_count(
+        _merge_paragraph_sources(ocr_result.row_paragraphs, ocr_result.raw_block_paragraphs)
+    )
+
+    payload = {
+        "pageNumber": page_number,
+        "pymupdfTextChars": pymupdf_text_chars,
+        "hasLargeImage": has_large_image,
+        "ocrTriggered": ocr_triggered,
+        "ocrConfidenceThreshold": get_settings().ocr_confidence_threshold,
+        "ocrZoom": get_settings().ocr_zoom,
+        "ocrResultCount": len(ocr_result.items),
+        "ocrTextChars": ocr_text_chars,
+        "rowTexts": row_texts,
+        "rawBlockTexts": raw_block_texts,
+        "items": [
+            {
+                "text": item.text,
+                "score": round(item.score, 4),
+                "bbox": [round(value, 2) for value in item.bbox],
+            }
+            for item in ocr_result.items
+        ],
+        "rawPayloads": ocr_result.raw_payloads,
+    }
+    json_file.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+    txt_sections = [
+        f"[meta]\npymupdf_text_chars={pymupdf_text_chars}\nhas_large_image={has_large_image}\nocr_triggered={ocr_triggered}\nocr_result_count={len(ocr_result.items)}\nocr_text_chars={ocr_text_chars}\nocr_confidence_threshold={get_settings().ocr_confidence_threshold}\nocr_zoom={get_settings().ocr_zoom}",
+        "[row_texts]\n" + ("\n".join(row_texts) if row_texts else "(none)"),
+        "[raw_block_texts]\n" + ("\n".join(raw_block_texts) if raw_block_texts else "(none)"),
+    ]
+    txt_file.write_text("\n\n".join(txt_sections), encoding="utf-8")

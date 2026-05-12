@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 import logging
+from dataclasses import dataclass
 from time import perf_counter
 
 from fastapi import HTTPException, status
@@ -12,7 +13,7 @@ from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 
 from app.config import get_settings
 from app.schemas import AskResponse, LlmAnswerPayload, SourceResponse
-from app.store import ChunkRecord, DocumentRecord, store
+from app.store import ChunkRecord, DocumentRecord, PageRecord, store
 
 TOKEN_RE = re.compile(r"[A-Za-z0-9_]+|[\uAC00-\uD7A3]+")
 HANGUL_RE = re.compile(r"[\uAC00-\uD7A3]")
@@ -47,6 +48,23 @@ KOREAN_PARTICLE_SUFFIXES = (
     "도",
     "만",
 )
+@dataclass(slots=True)
+class PageHit:
+    document_id: str
+    file_name: str
+    page_number: int
+    score: float
+
+
+@dataclass(slots=True)
+class PageSelection:
+    page_candidates: list[PageHit]
+    selected_pages: set[tuple[str, int]]
+    expanded_pages: set[tuple[str, int]]
+    page_score_lookup: dict[tuple[str, int], float]
+    filtering_enabled: bool
+
+
 class RagService:
     def __init__(self) -> None:
         self._settings = get_settings
@@ -155,20 +173,34 @@ class RagService:
         allowed_ids = {document.id for document in scoped_documents}
         vector_store = store.vector_store
 
+        page_candidate_k = max(getattr(settings, "rag_page_candidate_k", 3), 1)
         retrieval_k = getattr(settings, "rag_retrieval_k", 12)
         answer_top_k = getattr(settings, "rag_answer_top_k", 5)
+        raw_hits = self._search_raw_vector_hits(question, retrieval_k, vector_store)
 
-        lexical_hits = self._lexical_retrieve(question, scoped_documents)
+        page_selection = self._select_relevant_pages(
+            question,
+            scoped_documents,
+            raw_hits=raw_hits,
+            page_candidate_k=page_candidate_k,
+            answer_top_k=answer_top_k,
+        )
+        self._log_page_hits("PAGE CANDIDATES", question, page_selection.page_candidates)
+
+        allowed_pages = page_selection.expanded_pages if page_selection.filtering_enabled else None
+        if not page_selection.filtering_enabled:
+            logger.info("No page candidates selected; falling back to global chunk retrieval.")
+
+        lexical_hits = self._lexical_retrieve(
+            question,
+            scoped_documents,
+            allowed_pages=allowed_pages,
+        )
         self._log_retrieval_hits("LEXICAL HITS", question, lexical_hits)
 
         if vector_store is None:
             self._log_retrieval_hits("FINAL HITS - LEXICAL ONLY", question, lexical_hits[:answer_top_k])
             return lexical_hits[:answer_top_k]
-
-        raw_hits = vector_store.similarity_search_with_score(
-            self._embedding_search_text(question),
-            k=max(retrieval_k * 3, 15),
-        )
 
         vector_hits: list[tuple[ChunkRecord, float]] = []
         seen_chunk_ids: set[str] = set()
@@ -177,8 +209,11 @@ class RagService:
             metadata = doc.metadata
             document_id = str(metadata["document_id"])
             chunk_id = str(metadata["chunk_id"])
+            page_number = int(metadata["page_number"])
 
             if document_id not in allowed_ids or chunk_id in seen_chunk_ids:
+                continue
+            if allowed_pages is not None and (document_id, page_number) not in allowed_pages:
                 continue
 
             chunk = store.get_chunk(chunk_id)
@@ -200,6 +235,7 @@ class RagService:
             vector_hits=vector_hits,
             lexical_hits=lexical_hits,
             limit=retrieval_k,
+            page_scores=page_selection.page_score_lookup,
         )
 
         self._log_retrieval_hits("MERGED HITS", question, merged)
@@ -209,10 +245,25 @@ class RagService:
 
         return final_hits
 
+    def _search_raw_vector_hits(
+        self,
+        question: str,
+        retrieval_k: int,
+        vector_store: FAISS | None,
+    ) -> list[tuple[Document, float]]:
+        if vector_store is None:
+            return []
+
+        return vector_store.similarity_search_with_score(
+            self._embedding_search_text(question),
+            k=max(retrieval_k * 6, 24),
+        )
+
     def _lexical_retrieve(
         self,
         question: str,
         scoped_documents: list[DocumentRecord],
+        allowed_pages: set[tuple[str, int]] | None = None,
     ) -> list[tuple[ChunkRecord, float]]:
         settings = self._settings()
         query_terms = self._search_terms(question)
@@ -225,31 +276,186 @@ class RagService:
         ranked: list[tuple[ChunkRecord, float]] = []
         for document in scoped_documents:
             for chunk in document.chunks:
-                chunk_token_set = set(self._search_terms(chunk.text))
-                overlap = len(query_token_set & chunk_token_set)
-                compact_bonus = self._compact_match_score(query_compact, query_terms, chunk.text)
-                ngram_score = self._ngram_match_score(query_ngrams, chunk.text)
-
-                token_score = overlap / max(len(query_token_set), 1) if overlap > 0 else 0.0
-                if token_score == 0 and compact_bonus == 0 and ngram_score == 0:
+                page_key = (chunk.document_id, chunk.page_number)
+                if allowed_pages and page_key not in allowed_pages:
                     continue
 
-                score = max(token_score, compact_bonus, ngram_score)
-                if compact_bonus > 0 and ngram_score > 0:
-                    score = max(score, min(1.0, compact_bonus + (ngram_score * 0.2)))
-
-                if any(char.isdigit() for char in question) and any(char.isdigit() for char in chunk.text):
-                    score += 0.15
+                score = self._text_match_score(
+                    question=question,
+                    query_terms=query_terms,
+                    query_token_set=query_token_set,
+                    query_compact=query_compact,
+                    query_ngrams=query_ngrams,
+                    target_text=chunk.text,
+                )
+                if score == 0:
+                    continue
                 ranked.append((chunk, score))
 
         ranked.sort(key=lambda item: item[1], reverse=True)
         return ranked[: max(settings.rag_answer_top_k, settings.rag_retrieval_k)]
+
+    def _rank_pages(
+        self,
+        question: str,
+        scoped_documents: list[DocumentRecord],
+        raw_hits: list[tuple[Document, float]],
+        limit: int,
+    ) -> list[PageHit]:
+        lexical_hits = self._lexical_page_retrieve(question, scoped_documents)
+        self._log_page_hits("PAGE LEXICAL HITS", question, lexical_hits)
+
+        vector_hits = self._vector_page_retrieve(raw_hits, scoped_documents)
+        self._log_page_hits("PAGE VECTOR HITS", question, vector_hits)
+
+        merged = self._merge_page_hits(lexical_hits, vector_hits, limit)
+        return merged[:limit]
+
+    def _select_relevant_pages(
+        self,
+        question: str,
+        scoped_documents: list[DocumentRecord],
+        raw_hits: list[tuple[Document, float]],
+        page_candidate_k: int,
+        answer_top_k: int,
+    ) -> PageSelection:
+        page_buffer = max(page_candidate_k * 2, answer_top_k, 4)
+        page_candidates = self._rank_pages(
+            question,
+            scoped_documents,
+            raw_hits=raw_hits,
+            limit=page_buffer,
+        )
+        selected_pages = {
+            (page.document_id, page.page_number)
+            for page in page_candidates[:page_candidate_k]
+        }
+        expanded_pages = self._expand_neighbor_pages(selected_pages, scoped_documents)
+        page_score_lookup = {
+            (page.document_id, page.page_number): page.score
+            for page in page_candidates
+        }
+        filtering_enabled = bool(selected_pages and expanded_pages)
+
+        return PageSelection(
+            page_candidates=page_candidates,
+            selected_pages=selected_pages,
+            expanded_pages=expanded_pages,
+            page_score_lookup=page_score_lookup,
+            filtering_enabled=filtering_enabled,
+        )
+
+    def _expand_neighbor_pages(
+        self,
+        selected_pages: set[tuple[str, int]],
+        scoped_documents: list[DocumentRecord],
+    ) -> set[tuple[str, int]]:
+        page_counts = {document.id: document.page_count for document in scoped_documents}
+        expanded: set[tuple[str, int]] = set()
+
+        for document_id, page_number in selected_pages:
+            for candidate_page in (page_number - 1, page_number, page_number + 1):
+                if 1 <= candidate_page <= page_counts.get(document_id, 0):
+                    expanded.add((document_id, candidate_page))
+
+        return expanded
+
+    def _lexical_page_retrieve(
+        self,
+        question: str,
+        scoped_documents: list[DocumentRecord],
+    ) -> list[PageHit]:
+        query_terms = self._search_terms(question)
+        query_token_set = set(query_terms)
+        if not query_token_set:
+            return []
+
+        query_compact = self._compact_text(question)
+        query_ngrams = self._search_ngrams(question)
+        hits: list[PageHit] = []
+
+        for document in scoped_documents:
+            chunks_by_page: dict[int, list[ChunkRecord]] = {}
+            for chunk in document.chunks:
+                chunks_by_page.setdefault(chunk.page_number, []).append(chunk)
+
+            for page in document.pages:
+                page_text = self._page_search_text(
+                    page,
+                    chunks_by_page.get(page.page_number, []),
+                )
+                score = self._text_match_score(
+                    question=question,
+                    query_terms=query_terms,
+                    query_token_set=query_token_set,
+                    query_compact=query_compact,
+                    query_ngrams=query_ngrams,
+                    target_text=page_text,
+                )
+                if score == 0:
+                    continue
+
+                hits.append(
+                    PageHit(
+                        document_id=document.id,
+                        file_name=document.file_name,
+                        page_number=page.page_number,
+                        score=score,
+                    )
+                )
+
+        hits.sort(key=lambda item: item.score, reverse=True)
+        return hits
+
+    def _vector_page_retrieve(
+        self,
+        raw_hits: list[tuple[Document, float]],
+        scoped_documents: list[DocumentRecord],
+    ) -> list[PageHit]:
+        if not raw_hits:
+            return []
+
+        allowed_ids = {document.id for document in scoped_documents}
+        file_names = {document.id: document.file_name for document in scoped_documents}
+        ranked_pages: dict[tuple[str, int], tuple[float, int]] = {}
+
+        for doc, score in raw_hits:
+            metadata = doc.metadata
+            document_id = str(metadata["document_id"])
+            if document_id not in allowed_ids:
+                continue
+
+            page_number = int(metadata["page_number"])
+            page_key = (document_id, page_number)
+            normalized_score = 1 / (1 + float(score))
+            # This is not a true page embedding score. It aggregates chunk-level vector hits by page.
+            previous_score, previous_count = ranked_pages.get(page_key, (0.0, 0))
+            ranked_pages[page_key] = (
+                max(previous_score, normalized_score),
+                previous_count + 1,
+            )
+
+        hits: list[PageHit] = []
+        for (document_id, page_number), (score, count) in ranked_pages.items():
+            boosted_score = min(score + (max(count - 1, 0) * 0.04), 1.0)
+            hits.append(
+                PageHit(
+                    document_id=document_id,
+                    file_name=file_names.get(document_id, ""),
+                    page_number=page_number,
+                    score=boosted_score,
+                )
+            )
+
+        hits.sort(key=lambda item: item.score, reverse=True)
+        return hits
 
     def _merge_retrieval_hits(
         self,
         vector_hits: list[tuple[ChunkRecord, float]],
         lexical_hits: list[tuple[ChunkRecord, float]],
         limit: int,
+        page_scores: dict[tuple[str, int], float] | None = None,
     ) -> list[tuple[ChunkRecord, float]]:
         merged: dict[str, tuple[ChunkRecord, float, set[str]]] = {}
 
@@ -269,12 +475,103 @@ class RagService:
                 merged[chunk.id] = (existing_chunk, combined_score, sources)
 
         ranked = sorted(
-            merged.values(),
+            (
+                (
+                    chunk,
+                    self._apply_page_boost(
+                        score,
+                        (page_scores or {}).get((chunk.document_id, chunk.page_number), 0.0),
+                    ),
+                    sources,
+                )
+                for chunk, score, sources in merged.values()
+            ),
             key=lambda item: item[1],
             reverse=True,
         )
 
         return [(chunk, score) for chunk, score, _sources in ranked[:limit]]
+
+    def _merge_page_hits(
+        self,
+        lexical_hits: list[PageHit],
+        vector_hits: list[PageHit],
+        limit: int,
+    ) -> list[PageHit]:
+        merged: dict[tuple[str, int], PageHit] = {}
+
+        for page_hit in vector_hits:
+            merged[(page_hit.document_id, page_hit.page_number)] = page_hit
+
+        for page_hit in lexical_hits:
+            page_key = (page_hit.document_id, page_hit.page_number)
+            existing = merged.get(page_key)
+            lexical_score = min(page_hit.score * 0.85, 0.95)
+            if existing is None:
+                merged[page_key] = PageHit(
+                    document_id=page_hit.document_id,
+                    file_name=page_hit.file_name,
+                    page_number=page_hit.page_number,
+                    score=lexical_score,
+                )
+                continue
+
+            merged[page_key] = PageHit(
+                document_id=existing.document_id,
+                file_name=existing.file_name,
+                page_number=existing.page_number,
+                score=min(max(existing.score, lexical_score) + 0.1, 1.0),
+            )
+
+        ranked = sorted(merged.values(), key=lambda item: item.score, reverse=True)
+        return ranked[:limit]
+
+    @staticmethod
+    def _page_search_text(page: PageRecord, chunks: list[ChunkRecord]) -> str:
+        variants: list[str] = []
+        page_body = "\n".join(paragraph for paragraph in page.paragraphs if paragraph)
+        if page_body:
+            variants.append(page_body)
+
+        section_titles = [chunk.section_title for chunk in chunks if chunk.section_title]
+        if section_titles:
+            variants.append(" ".join(dict.fromkeys(section_titles)))
+
+        return "\n".join(variants)
+
+    def _text_match_score(
+        self,
+        question: str,
+        query_terms: list[str],
+        query_token_set: set[str],
+        query_compact: str,
+        query_ngrams: set[str],
+        target_text: str,
+    ) -> float:
+        target_token_set = set(self._search_terms(target_text))
+        overlap = len(query_token_set & target_token_set)
+        compact_bonus = self._compact_match_score(query_compact, query_terms, target_text)
+        ngram_score = self._ngram_match_score(query_ngrams, target_text)
+
+        token_score = overlap / max(len(query_token_set), 1) if overlap > 0 else 0.0
+        if token_score == 0 and compact_bonus == 0 and ngram_score == 0:
+            return 0.0
+
+        score = max(token_score, compact_bonus, ngram_score)
+        if compact_bonus > 0 and ngram_score > 0:
+            score = max(score, min(1.0, compact_bonus + (ngram_score * 0.2)))
+
+        if any(char.isdigit() for char in question) and any(char.isdigit() for char in target_text):
+            score += 0.15
+
+        return min(score, 1.0)
+
+    def _apply_page_boost(self, score: float, page_score: float) -> float:
+        settings = self._settings()
+        page_boost = getattr(settings, "rag_page_score_boost", 0.12)
+        if page_score <= 0 or page_boost <= 0:
+            return score
+        return min(score + (page_score * page_boost), 1.0)
 
     def _answer_with_llm(
         self,
@@ -476,6 +773,31 @@ class RagService:
                 chunk.paragraph_end_index,
                 chunk.id,
                 preview,
+            )
+
+    def _log_page_hits(
+        self,
+        label: str,
+        question: str,
+        hits: list[PageHit],
+        limit: int = 10,
+    ) -> None:
+        settings = self._settings()
+        if not getattr(settings, "rag_debug", True):
+            return
+
+        logger.info("========== %s ==========", label)
+        logger.info("question=%s", question)
+        logger.info("page_hit_count=%s", len(hits))
+
+        for index, page_hit in enumerate(hits[:limit], start=1):
+            logger.info(
+                "#%s score=%.4f file=%s page=%s document_id=%s",
+                index,
+                page_hit.score,
+                page_hit.file_name,
+                page_hit.page_number,
+                page_hit.document_id,
             )
 
     def _log_llm_context(self, question: str, context: str) -> None:
@@ -861,10 +1183,54 @@ class RagService:
         question: str,
         scoped_documents: list[DocumentRecord],
     ) -> dict:
+        settings = self._settings()
+        retrieval_k = getattr(settings, "rag_retrieval_k", 12)
+        answer_top_k = getattr(settings, "rag_answer_top_k", 5)
+        page_candidate_k = max(getattr(settings, "rag_page_candidate_k", 3), 1)
+
+        raw_hits = self._search_raw_vector_hits(question, retrieval_k, store.vector_store)
+
+        page_selection = self._select_relevant_pages(
+            question,
+            scoped_documents,
+            raw_hits=raw_hits,
+            page_candidate_k=page_candidate_k,
+            answer_top_k=answer_top_k,
+        )
         hits = self._retrieve(question, scoped_documents)
+        document_lookup = {document.id: document for document in scoped_documents}
 
         return {
             "question": question,
+            "pageFilteringEnabled": page_selection.filtering_enabled,
+            "selectedPages": [
+                {
+                    "documentId": document_id,
+                    "fileName": document_lookup.get(document_id).file_name if document_lookup.get(document_id) else "",
+                    "pageNumber": page_number,
+                }
+                for document_id, page_number in sorted(page_selection.selected_pages)
+            ],
+            "expandedPages": [
+                {
+                    "documentId": document_id,
+                    "fileName": document_lookup.get(document_id).file_name if document_lookup.get(document_id) else "",
+                    "pageNumber": page_number,
+                }
+                for document_id, page_number in sorted(page_selection.expanded_pages)
+            ],
+            "pageCandidates": [
+                {
+                    "rank": index,
+                    "score": round(page_hit.score, 4),
+                    "documentId": page_hit.document_id,
+                    "fileName": page_hit.file_name,
+                    "pageNumber": page_hit.page_number,
+                    "selected": (page_hit.document_id, page_hit.page_number) in page_selection.selected_pages,
+                    "expanded": (page_hit.document_id, page_hit.page_number) in page_selection.expanded_pages,
+                }
+                for index, page_hit in enumerate(page_selection.page_candidates, start=1)
+            ],
             "hits": [
                 {
                     "rank": index,
