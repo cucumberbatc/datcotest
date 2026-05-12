@@ -5,7 +5,10 @@ backend/backend-storage
 backend-storage
 python/.venv
 python/__pycache__
-./pyc
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
 python/.pytest_cache
 python/storage
 design-index.html
@@ -15,3 +18,6 @@ pdf-chat-agent/
 */.env
 python/.env
 frontend/.env
+**/__pycache__
+*.pyc
+.pytest_cache

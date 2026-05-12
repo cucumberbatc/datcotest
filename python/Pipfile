@@ -15,6 +15,8 @@ pymupdf = "<2.0,>=1.24"
 uvicorn = {extras = ["standard"], version = "<1.0,>=0.30"}
 paddleocr = ">=3.2,<4.0"
 numpy = "==1.26.4"
+kiwipiepy = "*"
+rank-bm25 = "*"
 
 [dev-packages]
 

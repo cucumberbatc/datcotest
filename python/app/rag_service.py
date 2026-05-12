@@ -10,6 +10,8 @@ from langchain_core.documents import Document
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_community.vectorstores import FAISS
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from rank_bm25 import BM25Okapi
+from kiwipiepy import Kiwi
 
 from app.config import get_settings
 from app.schemas import AskResponse, LlmAnswerPayload, SourceResponse
@@ -48,6 +50,13 @@ KOREAN_PARTICLE_SUFFIXES = (
     "도",
     "만",
 )
+
+kiwi = Kiwi()
+
+def kiwi_tokenize(text: str) -> list[str]:
+    tokens = kiwi.tokenize(text)
+    return [t.form for t in tokens if t.tag.startswith('N') or t.tag.startswith('V') or t.tag.startswith('S')]
+
 @dataclass(slots=True)
 class PageHit:
     document_id: str
@@ -164,6 +173,26 @@ class RagService:
             elapsedMs=int((perf_counter() - started_at) * 1000),
         )
 
+    def _generate_queries(self, question: str) -> list[str]:
+        settings = self._settings()
+        if not settings.openai_api_key:
+            return [question]
+        
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", "당신은 AI 검색 어시스턴트입니다. 사용자의 질문을 분석하여, 검색 엔진에서 문서를 찾기 좋은 형태의 다양한 동의어/유사 질문으로 3개를 만들어주세요. 원본 질문과 의미가 같아야 하며, 검색 키워드가 다채로워야 합니다. 결과는 줄바꿈으로 구분된 텍스트로 반환하세요. 번호 매기기나 추가 설명은 하지 마세요."),
+            ("human", "{question}")
+        ])
+        llm = ChatOpenAI(api_key=settings.openai_api_key, model=settings.openai_chat_model, temperature=0.3)
+        try:
+            response = llm.invoke(prompt.format_messages(question=question))
+            queries = [q.strip("- ") for q in response.content.split("\n") if q.strip()]
+            if not queries:
+                return [question]
+            return [question] + queries[:3]
+        except Exception as e:
+            logger.error("Query expansion failed: %s", e)
+            return [question]
+
     def _retrieve(
         self,
         question: str,
@@ -173,13 +202,30 @@ class RagService:
         allowed_ids = {document.id for document in scoped_documents}
         vector_store = store.vector_store
 
+        # 1. Query Expansion
+        expanded_queries = self._generate_queries(question)
+        if getattr(settings, "rag_debug", True):
+            logger.info("========== EXPANDED QUERIES ==========")
+            logger.info("\n".join(expanded_queries))
+
         page_candidate_k = max(getattr(settings, "rag_page_candidate_k", 3), 1)
         retrieval_k = getattr(settings, "rag_retrieval_k", 12)
         answer_top_k = getattr(settings, "rag_answer_top_k", 5)
-        raw_hits = self._search_raw_vector_hits(question, retrieval_k, vector_store)
+        
+        # 2. Vector Search (Multi-query)
+        raw_hits = []
+        seen_vector_docs = set()
+        for q in expanded_queries:
+            q_hits = self._search_raw_vector_hits(q, retrieval_k, vector_store)
+            for doc, score in q_hits:
+                doc_key = (doc.metadata.get("document_id"), doc.metadata.get("chunk_id"))
+                if doc_key not in seen_vector_docs:
+                    seen_vector_docs.add(doc_key)
+                    raw_hits.append((doc, score))
+
 
         page_selection = self._select_relevant_pages(
-            question,
+            expanded_queries,
             scoped_documents,
             raw_hits=raw_hits,
             page_candidate_k=page_candidate_k,
@@ -192,7 +238,7 @@ class RagService:
             logger.info("No page candidates selected; falling back to global chunk retrieval.")
 
         lexical_hits = self._lexical_retrieve(
-            question,
+            expanded_queries,
             scoped_documents,
             allowed_pages=allowed_pages,
         )
@@ -261,59 +307,65 @@ class RagService:
 
     def _lexical_retrieve(
         self,
-        question: str,
+        expanded_queries: list[str],
         scoped_documents: list[DocumentRecord],
         allowed_pages: set[tuple[str, int]] | None = None,
     ) -> list[tuple[ChunkRecord, float]]:
         settings = self._settings()
-        query_terms = self._search_terms(question)
-        query_token_set = set(query_terms)
-        if not query_token_set:
-            return []
-
-        query_compact = self._compact_text(question)
-        query_ngrams = self._search_ngrams(question)
-        ranked: list[tuple[ChunkRecord, float]] = []
+        
+        allowed_chunks = []
         for document in scoped_documents:
             for chunk in document.chunks:
                 page_key = (chunk.document_id, chunk.page_number)
                 if allowed_pages and page_key not in allowed_pages:
                     continue
+                allowed_chunks.append(chunk)
 
-                score = self._text_match_score(
-                    question=question,
-                    query_terms=query_terms,
-                    query_token_set=query_token_set,
-                    query_compact=query_compact,
-                    query_ngrams=query_ngrams,
-                    target_text=chunk.text,
-                )
-                if score == 0:
-                    continue
-                ranked.append((chunk, score))
+        if not allowed_chunks:
+            return []
+
+        tokenized_corpus = [kiwi_tokenize(chunk.text) for chunk in allowed_chunks]
+        bm25 = BM25Okapi(tokenized_corpus)
+        
+        chunk_scores = {chunk.id: 0.0 for chunk in allowed_chunks}
+        
+        for q in expanded_queries:
+            tokenized_query = kiwi_tokenize(q)
+            if not tokenized_query: continue
+            scores = bm25.get_scores(tokenized_query)
+            for chunk, score in zip(allowed_chunks, scores):
+                chunk_scores[chunk.id] = max(chunk_scores[chunk.id], score)
+
+        ranked = []
+        max_score = max(chunk_scores.values()) if chunk_scores else 0
+        for chunk in allowed_chunks:
+            score = chunk_scores[chunk.id]
+            if score > 0:
+                normalized_score = score / max_score if max_score > 0 else 0
+                ranked.append((chunk, normalized_score))
 
         ranked.sort(key=lambda item: item[1], reverse=True)
         return ranked[: max(settings.rag_answer_top_k, settings.rag_retrieval_k)]
 
     def _rank_pages(
         self,
-        question: str,
+        expanded_queries: list[str],
         scoped_documents: list[DocumentRecord],
         raw_hits: list[tuple[Document, float]],
         limit: int,
     ) -> list[PageHit]:
-        lexical_hits = self._lexical_page_retrieve(question, scoped_documents)
-        self._log_page_hits("PAGE LEXICAL HITS", question, lexical_hits)
+        lexical_hits = self._lexical_page_retrieve(expanded_queries, scoped_documents)
+        self._log_page_hits("PAGE LEXICAL HITS", expanded_queries[0], lexical_hits)
 
         vector_hits = self._vector_page_retrieve(raw_hits, scoped_documents)
-        self._log_page_hits("PAGE VECTOR HITS", question, vector_hits)
+        self._log_page_hits("PAGE VECTOR HITS", expanded_queries[0], vector_hits)
 
         merged = self._merge_page_hits(lexical_hits, vector_hits, limit)
         return merged[:limit]
 
     def _select_relevant_pages(
         self,
-        question: str,
+        expanded_queries: list[str],
         scoped_documents: list[DocumentRecord],
         raw_hits: list[tuple[Document, float]],
         page_candidate_k: int,
@@ -321,7 +373,7 @@ class RagService:
     ) -> PageSelection:
         page_buffer = max(page_candidate_k * 2, answer_top_k, 4)
         page_candidates = self._rank_pages(
-            question,
+            expanded_queries,
             scoped_documents,
             raw_hits=raw_hits,
             limit=page_buffer,
@@ -362,18 +414,11 @@ class RagService:
 
     def _lexical_page_retrieve(
         self,
-        question: str,
+        expanded_queries: list[str],
         scoped_documents: list[DocumentRecord],
     ) -> list[PageHit]:
-        query_terms = self._search_terms(question)
-        query_token_set = set(query_terms)
-        if not query_token_set:
-            return []
-
-        query_compact = self._compact_text(question)
-        query_ngrams = self._search_ngrams(question)
-        hits: list[PageHit] = []
-
+        allowed_pages_text = []
+        page_refs = []
         for document in scoped_documents:
             chunks_by_page: dict[int, list[ChunkRecord]] = {}
             for chunk in document.chunks:
@@ -384,23 +429,37 @@ class RagService:
                     page,
                     chunks_by_page.get(page.page_number, []),
                 )
-                score = self._text_match_score(
-                    question=question,
-                    query_terms=query_terms,
-                    query_token_set=query_token_set,
-                    query_compact=query_compact,
-                    query_ngrams=query_ngrams,
-                    target_text=page_text,
-                )
-                if score == 0:
-                    continue
+                allowed_pages_text.append(page_text)
+                page_refs.append((document.id, document.file_name, page.page_number))
 
+        if not allowed_pages_text:
+            return []
+
+        tokenized_corpus = [kiwi_tokenize(text) for text in allowed_pages_text]
+        bm25 = BM25Okapi(tokenized_corpus)
+        
+        page_scores = {i: 0.0 for i in range(len(allowed_pages_text))}
+        
+        for q in expanded_queries:
+            tokenized_query = kiwi_tokenize(q)
+            if not tokenized_query: continue
+            scores = bm25.get_scores(tokenized_query)
+            for i, score in enumerate(scores):
+                page_scores[i] = max(page_scores[i], score)
+
+        hits: list[PageHit] = []
+        max_score = max(page_scores.values()) if page_scores else 0
+        
+        for i, score in page_scores.items():
+            if score > 0:
+                normalized_score = score / max_score if max_score > 0 else 0
+                doc_id, file_name, page_number = page_refs[i]
                 hits.append(
                     PageHit(
-                        document_id=document.id,
-                        file_name=document.file_name,
-                        page_number=page.page_number,
-                        score=score,
+                        document_id=doc_id,
+                        file_name=file_name,
+                        page_number=page_number,
+                        score=normalized_score,
                     )
                 )
 
@@ -837,23 +896,17 @@ class RagService:
         if start > end:
             return chunk.paragraph_index, chunk.paragraph_index, chunk.text
 
-        query_terms = self._search_terms(question)
-        query_tokens = set(query_terms)
-        query_compact = self._compact_text(question)
-        query_ngrams = self._search_ngrams(question)
+        query_tokens = set(kiwi_tokenize(question))
 
         best_index = start
         best_score = -1.0
         scored_paragraphs: list[tuple[int, float]] = []
         for paragraph_index in range(start, end + 1):
             paragraph = page.paragraphs[paragraph_index - 1]
-            paragraph_score = self._paragraph_match_score(
-                query_tokens,
-                query_compact,
-                query_terms,
-                query_ngrams,
-                paragraph,
-            )
+            paragraph_tokens = set(kiwi_tokenize(paragraph))
+            overlap = len(query_tokens & paragraph_tokens)
+            paragraph_score = overlap / max(len(query_tokens), 1) if overlap > 0 else 0.0
+
             scored_paragraphs.append((paragraph_index, paragraph_score))
             if paragraph_score > best_score:
                 best_score = paragraph_score
@@ -886,20 +939,6 @@ class RagService:
             evidence_text = f"Section: {chunk.section_title}\n\n{evidence_text}"
 
         return best_index, best_index, evidence_text
-
-    def _paragraph_match_score(
-        self,
-        query_tokens: set[str],
-        query_compact: str,
-        query_terms: list[str],
-        query_ngrams: set[str],
-        paragraph: str,
-    ) -> float:
-        paragraph_tokens = set(self._search_terms(paragraph))
-        overlap_score = len(query_tokens & paragraph_tokens) / max(len(query_tokens), 1)
-        compact_score = self._compact_match_score(query_compact, query_terms, paragraph)
-        ngram_score = self._ngram_match_score(query_ngrams, paragraph)
-        return max(overlap_score, compact_score, ngram_score)
 
     def _should_include_neighboring_context(
         self,
@@ -1191,7 +1230,7 @@ class RagService:
         raw_hits = self._search_raw_vector_hits(question, retrieval_k, store.vector_store)
 
         page_selection = self._select_relevant_pages(
-            question,
+            expanded_queries,
             scoped_documents,
             raw_hits=raw_hits,
             page_candidate_k=page_candidate_k,
