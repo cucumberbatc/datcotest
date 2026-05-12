@@ -1,6 +1,6 @@
 "use client";
 
-import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, type CSSProperties, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
 type DocumentSummary = {
   id: string;
@@ -141,26 +141,247 @@ function makeId(prefix: string) {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-function renderAnswer(answer: string, activeCitation: number | null, onActivateCitation: (citation: number) => void) {
-  const pieces = answer.split(/(\[\d+\])/g).filter(Boolean);
-  return pieces.map((piece, index) => {
-    const match = piece.match(/^\[(\d+)\]$/);
-    if (!match) {
-      return <span key={`${piece}-${index}`}>{piece}</span>;
+type CitationHandler = (citation: number) => void;
+
+function renderInlineMarkdown(
+  text: string,
+  keyPrefix: string,
+  activeCitation: number | null,
+  onActivateCitation: CitationHandler
+): ReactNode[] {
+  const tokenPattern =
+    /(\[[^\]]+\]\((?:https?:\/\/|mailto:)[^)]+\)|`[^`]+`|\*\*[^*]+\*\*|__[^_]+__|\*[^*]+\*|_[^_]+_|\[\d+\])/g;
+  const nodes: ReactNode[] = [];
+  let cursor = 0;
+  let tokenIndex = 0;
+
+  for (const match of text.matchAll(tokenPattern)) {
+    const token = match[0];
+    const start = match.index ?? 0;
+    if (start > cursor) {
+      nodes.push(text.slice(cursor, start));
     }
-    const citation = Number(match[1]);
-    return (
-      <button
-        key={`${piece}-${index}`}
-        className="cite"
-        data-active={activeCitation === citation}
-        onClick={() => onActivateCitation(citation)}
-        type="button"
-      >
-        {citation}
-      </button>
-    );
+
+    const linkMatch = token.match(/^\[([^\]]+)\]\(((?:https?:\/\/|mailto:)[^)]+)\)$/);
+    if (linkMatch) {
+      nodes.push(
+        <a
+          key={`${keyPrefix}-link-${tokenIndex}`}
+          className="answer-link"
+          href={linkMatch[2]}
+          rel="noreferrer"
+          target="_blank"
+        >
+          {renderInlineMarkdown(linkMatch[1], `${keyPrefix}-link-label-${tokenIndex}`, activeCitation, onActivateCitation)}
+        </a>
+      );
+      cursor = start + token.length;
+      tokenIndex += 1;
+      continue;
+    }
+
+    const citationMatch = token.match(/^\[(\d+)\]$/);
+    if (citationMatch) {
+      const citation = Number(citationMatch[1]);
+      nodes.push(
+        <button
+          key={`${keyPrefix}-cite-${citation}-${tokenIndex}`}
+          className="cite"
+          data-active={activeCitation === citation}
+          onClick={() => onActivateCitation(citation)}
+          type="button"
+        >
+          {citation}
+        </button>
+      );
+      cursor = start + token.length;
+      tokenIndex += 1;
+      continue;
+    }
+
+    if ((token.startsWith("**") && token.endsWith("**")) || (token.startsWith("__") && token.endsWith("__"))) {
+      const content = token.slice(2, -2);
+      nodes.push(
+        <strong key={`${keyPrefix}-strong-${tokenIndex}`}>
+          {renderInlineMarkdown(content, `${keyPrefix}-strong-content-${tokenIndex}`, activeCitation, onActivateCitation)}
+        </strong>
+      );
+      cursor = start + token.length;
+      tokenIndex += 1;
+      continue;
+    }
+
+    if ((token.startsWith("*") && token.endsWith("*")) || (token.startsWith("_") && token.endsWith("_"))) {
+      const content = token.slice(1, -1);
+      nodes.push(
+        <em key={`${keyPrefix}-em-${tokenIndex}`}>
+          {renderInlineMarkdown(content, `${keyPrefix}-em-content-${tokenIndex}`, activeCitation, onActivateCitation)}
+        </em>
+      );
+      cursor = start + token.length;
+      tokenIndex += 1;
+      continue;
+    }
+
+    if (token.startsWith("`") && token.endsWith("`")) {
+      nodes.push(
+        <code key={`${keyPrefix}-code-${tokenIndex}`}>{token.slice(1, -1)}</code>
+      );
+      cursor = start + token.length;
+      tokenIndex += 1;
+      continue;
+    }
+  }
+
+  if (cursor < text.length) {
+    nodes.push(text.slice(cursor));
+  }
+
+  return nodes;
+}
+
+function renderMarkdownText(
+  text: string,
+  keyPrefix: string,
+  activeCitation: number | null,
+  onActivateCitation: CitationHandler
+): ReactNode[] {
+  return text.split("\n").flatMap((line, index, lines) => {
+    const nodes = renderInlineMarkdown(line, `${keyPrefix}-line-${index}`, activeCitation, onActivateCitation);
+    if (index === lines.length - 1) {
+      return nodes;
+    }
+
+    return [
+      ...nodes,
+      <br key={`${keyPrefix}-br-${index}`} />
+    ];
   });
+}
+
+function renderAnswer(answer: string, activeCitation: number | null, onActivateCitation: (citation: number) => void) {
+  const normalized = answer.replace(/\r\n?/g, "\n");
+  const lines = normalized.split("\n");
+  const blocks: ReactNode[] = [];
+  let index = 0;
+
+  while (index < lines.length) {
+    const line = lines[index];
+    const trimmed = line.trim();
+
+    if (!trimmed) {
+      index += 1;
+      continue;
+    }
+
+    if (trimmed.startsWith("```")) {
+      const language = trimmed.slice(3).trim();
+      const codeLines: string[] = [];
+      index += 1;
+      while (index < lines.length && !lines[index].trim().startsWith("```")) {
+        codeLines.push(lines[index]);
+        index += 1;
+      }
+      if (index < lines.length) {
+        index += 1;
+      }
+      blocks.push(
+        <pre key={`code-${blocks.length}`} data-language={language || undefined}>
+          <code>{codeLines.join("\n")}</code>
+        </pre>
+      );
+      continue;
+    }
+
+    const headingMatch = line.match(/^(#{1,6})\s+(.*)$/);
+    if (headingMatch) {
+      const level = Math.min(headingMatch[1].length, 6);
+      const HeadingTag = `h${level}` as keyof JSX.IntrinsicElements;
+      blocks.push(
+        <HeadingTag key={`heading-${blocks.length}`}>
+          {renderMarkdownText(headingMatch[2], `heading-${blocks.length}`, activeCitation, onActivateCitation)}
+        </HeadingTag>
+      );
+      index += 1;
+      continue;
+    }
+
+    if (/^>\s?/.test(trimmed)) {
+      const quoteLines: string[] = [];
+      while (index < lines.length && /^>\s?/.test(lines[index].trim())) {
+        quoteLines.push(lines[index].trim().replace(/^>\s?/, ""));
+        index += 1;
+      }
+      blocks.push(
+        <blockquote key={`quote-${blocks.length}`}>
+          {renderMarkdownText(quoteLines.join("\n"), `quote-${blocks.length}`, activeCitation, onActivateCitation)}
+        </blockquote>
+      );
+      continue;
+    }
+
+    if (/^[-*+]\s+/.test(trimmed)) {
+      const items: string[] = [];
+      while (index < lines.length && /^[-*+]\s+/.test(lines[index].trim())) {
+        items.push(lines[index].trim().replace(/^[-*+]\s+/, ""));
+        index += 1;
+      }
+      blocks.push(
+        <ul key={`ul-${blocks.length}`}>
+          {items.map((item, itemIndex) => (
+            <li key={`ul-${blocks.length}-item-${itemIndex}`}>
+              {renderMarkdownText(item, `ul-${blocks.length}-item-${itemIndex}`, activeCitation, onActivateCitation)}
+            </li>
+          ))}
+        </ul>
+      );
+      continue;
+    }
+
+    if (/^\d+\.\s+/.test(trimmed)) {
+      const items: string[] = [];
+      while (index < lines.length && /^\d+\.\s+/.test(lines[index].trim())) {
+        items.push(lines[index].trim().replace(/^\d+\.\s+/, ""));
+        index += 1;
+      }
+      blocks.push(
+        <ol key={`ol-${blocks.length}`}>
+          {items.map((item, itemIndex) => (
+            <li key={`ol-${blocks.length}-item-${itemIndex}`}>
+              {renderMarkdownText(item, `ol-${blocks.length}-item-${itemIndex}`, activeCitation, onActivateCitation)}
+            </li>
+          ))}
+        </ol>
+      );
+      continue;
+    }
+
+    const paragraphLines: string[] = [];
+    while (index < lines.length) {
+      const currentLine = lines[index];
+      const currentTrimmed = currentLine.trim();
+      if (
+        !currentTrimmed ||
+        currentTrimmed.startsWith("```") ||
+        /^(#{1,6})\s+/.test(currentLine) ||
+        /^>\s?/.test(currentTrimmed) ||
+        /^[-*+]\s+/.test(currentTrimmed) ||
+        /^\d+\.\s+/.test(currentTrimmed)
+      ) {
+        break;
+      }
+      paragraphLines.push(currentLine);
+      index += 1;
+    }
+
+    blocks.push(
+      <p key={`p-${blocks.length}`}>
+        {renderMarkdownText(paragraphLines.join("\n"), `p-${blocks.length}`, activeCitation, onActivateCitation)}
+      </p>
+    );
+  }
+
+  return blocks.map((block, blockIndex) => <Fragment key={blockIndex}>{block}</Fragment>);
 }
 
 export default function HomePage() {
