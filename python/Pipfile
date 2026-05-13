@@ -21,6 +21,7 @@ sentence-transformers = "*"
 torch = "*"
 llama-cloud = "*"
 
+
 [dev-packages]
 
 [requires]
