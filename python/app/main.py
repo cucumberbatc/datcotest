@@ -167,6 +167,11 @@ def delete_document(document_id: str) -> dict[str, bool]:
 @app.get(f"{settings.api_prefix}/documents/{{document_id}}/file")
 def open_document_file(document_id: str) -> FileResponse:
     document = get_document_or_404(document_id)
+    if not document.file_path.exists():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="File not found on disk.",
+        )
     media_type = mimetypes.guess_type(document.file_path.name)[0] or "application/pdf"
     return FileResponse(document.file_path, media_type=media_type, filename=document.file_name)
 
@@ -177,6 +182,11 @@ def open_document_file(document_id: str) -> FileResponse:
 )
 def get_page_metadata(document_id: str, page_number: int) -> PageMetadataResponse:
     document = get_document_or_404(document_id)
+    if not document.file_path.exists():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="File not found on disk.",
+        )
     width, height = get_page_size(document.file_path, page_number)
     return PageMetadataResponse(
         documentId=document.id,
@@ -190,8 +200,18 @@ def get_page_metadata(document_id: str, page_number: int) -> PageMetadataRespons
 @app.get(f"{settings.api_prefix}/documents/{{document_id}}/pages/{{page_number}}/image")
 def get_page_image(document_id: str, page_number: int) -> FileResponse:
     document = get_document_or_404(document_id)
+    if not document.file_path.exists():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="File not found on disk.",
+        )
     output_path = settings.page_images_root / document.id / f"page_{page_number}.png"
     render_page_image(document.file_path, output_path, page_number)
+    if not output_path.exists():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="File not found on disk.",
+        )
     return FileResponse(output_path, media_type="image/png", filename=f"{document.id}-page-{page_number}.png")
 
 
@@ -224,6 +244,11 @@ def get_highlighted_file(
     chunk = store.get_chunk(chunk_id)
     if not chunk or chunk.document_id != document.id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chunk not found.")
+    if not document.file_path.exists():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="File not found on disk.",
+        )
 
     highlight_suffix = (
         f"-p{paragraphStart}-{paragraphEnd}"
@@ -237,6 +262,11 @@ def get_highlighted_file(
         page_number=chunk.page_number,
         rects=select_highlight_rects(chunk, paragraphStart, paragraphEnd),
     )
+    if not output_path.exists():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="File not found on disk.",
+        )
     return FileResponse(output_path, media_type="application/pdf", filename=f"{document.file_name}.highlighted.pdf")
 
 

@@ -14,7 +14,7 @@ from app.store import ChunkRecord, DocumentRecord, PageRecord, store
 def _make_chunk(
     *,
     chunk_id: str = "chunk-1",
-    text: str = "Section: Specs\n\nIP67 ?깃툒??吏?먰빀?덈떎.",
+    text: str = "Section: Specs\n\nIP67 waterproof rated.",
     section_title: str | None = "Specs",
 ) -> ChunkRecord:
     return ChunkRecord(
@@ -40,19 +40,20 @@ def _make_document(chunk: ChunkRecord) -> DocumentRecord:
         status="ready",
         page_count=1,
         file_path=Path("sample.pdf"),
-        pages=[PageRecord(page_number=1, paragraphs=["Specs", "IP67 ?깃툒??吏?먰빀?덈떎."])],
+        pages=[PageRecord(page_number=1, paragraphs=["Specs", "IP67 waterproof rated."])],
         chunks=[chunk],
     )
 
 
 def _make_source(
     *,
+    citation_number: int = 1,
     score: float,
-    excerpt: str = "IP67 ?깃툒??吏?먰빀?덈떎.",
+    excerpt: str = "IP67 waterproof rated.",
     chunk_id: str = "chunk-1",
 ) -> SourceResponse:
     return SourceResponse(
-        citationNumber=1,
+        citationNumber=citation_number,
         documentId="doc-1",
         fileName="sample.pdf",
         pageNumber=1,
@@ -81,14 +82,14 @@ class RagServiceAnswerFlowTests(unittest.TestCase):
     def test_source_context_for_llm_uses_full_chunk_text(self) -> None:
         service = RagService()
         chunk = _make_chunk(
-            text="Section: Specs\n\n??臾몄옣?낅땲??\n?ㅼ젣 ?듭? IP67 ?깃툒?낅땲??",
+            text="Section: Specs\n\nFeature summary paragraph.\nIP67 waterproof rated.",
         )
         store.chunk_lookup[chunk.id] = chunk
-        source = _make_source(score=0.72, excerpt="??臾몄옣?낅땲??", chunk_id=chunk.id)
+        source = _make_source(score=0.72, excerpt="Feature summary paragraph.", chunk_id=chunk.id)
 
         context = service._source_context_for_llm(source)
 
-        self.assertIn("?ㅼ젣 ?듭? IP67 ?깃툒?낅땲??", context)
+        self.assertIn("IP67 waterproof rated.", context)
         self.assertNotEqual(context, source.excerpt)
 
     def test_strong_retrieval_overrides_llm_no_evidence(self) -> None:
@@ -115,12 +116,12 @@ class RagServiceAnswerFlowTests(unittest.TestCase):
             )
         )
 
-        response = service.ask("諛⑹닔諛⑹쭊 ?깃툒??", [document])
+        response = service.ask("Is it waterproof?", [document])
 
         self.assertFalse(response.noEvidence)
         self.assertIsNone(response.noEvidenceNote)
-        self.assertIn("寃?됰맂 臾몄꽌 洹쇨굅?먯꽌???ㅼ쓬 ?댁슜???뺤씤?????덉뒿?덈떎.", response.answer)
-        self.assertIn("IP67 ?깃툒??吏?먰빀?덈떎.", response.answer)
+        self.assertIn("검색된 문서 근거에서는 다음 내용을 확인할 수 있습니다.", response.answer)
+        self.assertIn("IP67 waterproof rated.", response.answer)
         self.assertEqual([source.citationNumber], [item.citationNumber for item in response.sources])
 
     def test_weak_retrieval_keeps_no_evidence(self) -> None:
@@ -147,7 +148,7 @@ class RagServiceAnswerFlowTests(unittest.TestCase):
             )
         )
 
-        response = service.ask("諛⑹닔諛⑹쭊 ?깃툒??", [document])
+        response = service.ask("Is it waterproof?", [document])
 
         self.assertTrue(response.noEvidence)
         self.assertEqual("", response.answer)
@@ -157,21 +158,21 @@ class RagServiceAnswerFlowTests(unittest.TestCase):
     def test_source_context_for_llm_adds_section_when_missing(self) -> None:
         service = RagService()
         chunk = _make_chunk(
-            text="IP67 ?깃툒怨?700mA 議곌굔???뺤씤?????덉뒿?덈떎.",
-            section_title="湲곕낯 ?ъ뼇",
+            text="IP67 waterproof rated at 700mA.",
+            section_title="Electrical Specs",
         )
         store.chunk_lookup[chunk.id] = chunk
         source = _make_source(score=0.81, chunk_id=chunk.id)
 
         context = service._source_context_for_llm(source)
 
-        self.assertTrue(context.startswith("Section: 湲곕낯 ?ъ뼇"))
-        self.assertIn("IP67 ?깃툒怨?700mA 議곌굔", context)
+        self.assertTrue(context.startswith("Section: Electrical Specs"))
+        self.assertIn("IP67 waterproof rated at 700mA.", context)
 
     def test_fallback_grounded_answer_uses_top_two_excerpts_only(self) -> None:
         service = RagService()
         sources = [
-            _make_source(score=0.91, excerpt="泥?踰덉㎏ 洹쇨굅?낅땲??", chunk_id="chunk-1"),
+            _make_source(citation_number=1, score=0.91, excerpt="First grounded evidence", chunk_id="chunk-1"),
             SourceResponse(
                 citationNumber=2,
                 documentId="doc-1",
@@ -179,9 +180,9 @@ class RagServiceAnswerFlowTests(unittest.TestCase):
                 pageNumber=2,
                 paragraphIndex=1,
                 paragraphEndIndex=2,
-                sectionTitle="?꾧린 ?뱀꽦",
+                sectionTitle="Details",
                 locationLabel="p.2 paras 1-2",
-                excerpt="??踰덉㎏ 洹쇨굅?낅땲??",
+                excerpt="Second grounded evidence",
                 score=0.83,
                 chunkId="chunk-2",
                 highlightFileUrl=None,
@@ -193,22 +194,22 @@ class RagServiceAnswerFlowTests(unittest.TestCase):
                 pageNumber=3,
                 paragraphIndex=4,
                 paragraphEndIndex=4,
-                sectionTitle="愿??뱀꽦",
+                sectionTitle="Extra",
                 locationLabel="p.3 para 4",
-                excerpt="??踰덉㎏ 洹쇨굅?낅땲??",
+                excerpt="Third grounded evidence",
                 score=0.79,
                 chunkId="chunk-3",
                 highlightFileUrl=None,
             ),
         ]
 
-        payload = service._fallback_grounded_answer("吏덈Ц", sources)
+        payload = service._fallback_grounded_answer("question", sources)
 
         self.assertFalse(payload.no_evidence)
         self.assertEqual([1, 2], payload.citations)
-        self.assertIn("泥?踰덉㎏ 洹쇨굅?낅땲?? [1]", payload.answer)
-        self.assertIn("??踰덉㎏ 洹쇨굅?낅땲?? [2]", payload.answer)
-        self.assertNotIn("??踰덉㎏ 洹쇨굅?낅땲??", payload.answer)
+        self.assertIn("First grounded evidence [1]", payload.answer)
+        self.assertIn("Second grounded evidence [2]", payload.answer)
+        self.assertNotIn("Third grounded evidence [3]", payload.answer)
 
     def test_selected_sources_follow_llm_citations(self) -> None:
         service = RagService()
@@ -220,7 +221,7 @@ class RagServiceAnswerFlowTests(unittest.TestCase):
         )
         chunk = _make_chunk()
         document = _make_document(chunk)
-        first_source = _make_source(score=0.88, excerpt="泥?踰덉㎏ source", chunk_id="chunk-1")
+        first_source = _make_source(citation_number=1, score=0.88, excerpt="First source", chunk_id="chunk-1")
         second_source = SourceResponse(
             citationNumber=2,
             documentId="doc-1",
@@ -228,9 +229,9 @@ class RagServiceAnswerFlowTests(unittest.TestCase):
             pageNumber=2,
             paragraphIndex=3,
             paragraphEndIndex=3,
-            sectionTitle="愿??뱀꽦",
+            sectionTitle="Details",
             locationLabel="p.2 para 3",
-            excerpt="??踰덉㎏ source",
+            excerpt="Second source",
             score=0.77,
             chunkId="chunk-2",
             highlightFileUrl=None,
@@ -241,18 +242,39 @@ class RagServiceAnswerFlowTests(unittest.TestCase):
         service._to_source = Mock(side_effect=[first_source, second_source])
         service._answer_with_llm = Mock(
             return_value=LlmAnswerPayload(
-                answer="??踰덉㎏ 洹쇨굅留??ъ슜???듬?",
+                answer="Answer grounded in the second source.",
                 citations=[2],
                 no_evidence=False,
                 no_evidence_reason=None,
             )
         )
 
-        response = service.ask("愿??뱀꽦??", [document])
+        response = service.ask("question", [document])
 
         self.assertFalse(response.noEvidence)
-        self.assertEqual("??踰덉㎏ 洹쇨굅留??ъ슜???듬?", response.answer)
+        self.assertEqual("Answer grounded in the second source.", response.answer)
         self.assertEqual([2], [source.citationNumber for source in response.sources])
+
+    def test_debug_retrieve_returns_expanded_queries_and_hits(self) -> None:
+        service = RagService()
+        chunk = _make_chunk()
+        document = _make_document(chunk)
+
+        service._generate_queries = Mock(return_value=["original question", "expanded question"])
+        service._retrieve = Mock(return_value=[(chunk, 0.8765)])
+
+        payload = service.debug_retrieve("original question", [document])
+
+        self.assertEqual("original question", payload["question"])
+        self.assertEqual(["original question", "expanded question"], payload["expandedQueries"])
+        self.assertEqual(1, payload["retrievedCount"])
+        self.assertEqual(1, len(payload["hits"]))
+        self.assertEqual(1, payload["hits"][0]["rank"])
+        self.assertEqual("doc-1", payload["hits"][0]["documentId"])
+        self.assertEqual("sample.pdf", payload["hits"][0]["fileName"])
+        self.assertEqual("chunk-1", payload["hits"][0]["chunkId"])
+        self.assertEqual("Specs", payload["hits"][0]["sectionTitle"])
+        self.assertIn("textPreview", payload["hits"][0])
 
 
 if __name__ == "__main__":

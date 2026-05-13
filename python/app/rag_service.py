@@ -56,7 +56,23 @@ kiwi = Kiwi()
 
 def kiwi_tokenize(text: str) -> list[str]:
     tokens = kiwi.tokenize(text)
-    return [t.form for t in tokens if t.tag.startswith('N') or t.tag.startswith('V') or t.tag.startswith('S')]
+    result: list[str] = []
+
+    for token in tokens:
+        form = token.form.strip()
+        tag = token.tag
+        if not form:
+            continue
+
+        if (
+            tag.startswith("N")
+            or tag.startswith("V")
+            or tag.startswith("SL")
+            or tag.startswith("SN")
+        ):
+            result.append(form)
+
+    return result
 
 @dataclass(slots=True)
 class PageHit:
@@ -1281,68 +1297,27 @@ class RagService:
         question: str,
         scoped_documents: list[DocumentRecord],
     ) -> dict:
-        settings = self._settings()
-        retrieval_k = getattr(settings, "rag_retrieval_k", 12)
-        answer_top_k = getattr(settings, "rag_answer_top_k", 5)
-        page_candidate_k = max(getattr(settings, "rag_page_candidate_k", 3), 1)
-
-        raw_hits = self._search_raw_vector_hits(question, retrieval_k, store.vector_store)
-
-        page_selection = self._select_relevant_pages(
-            expanded_queries,
-            scoped_documents,
-            raw_hits=raw_hits,
-            page_candidate_k=page_candidate_k,
-            answer_top_k=answer_top_k,
-        )
+        expanded_queries = self._generate_queries(question)
         hits = self._retrieve(question, scoped_documents)
-        document_lookup = {document.id: document for document in scoped_documents}
 
         return {
             "question": question,
-            "pageFilteringEnabled": page_selection.filtering_enabled,
-            "selectedPages": [
-                {
-                    "documentId": document_id,
-                    "fileName": document_lookup.get(document_id).file_name if document_lookup.get(document_id) else "",
-                    "pageNumber": page_number,
-                }
-                for document_id, page_number in sorted(page_selection.selected_pages)
-            ],
-            "expandedPages": [
-                {
-                    "documentId": document_id,
-                    "fileName": document_lookup.get(document_id).file_name if document_lookup.get(document_id) else "",
-                    "pageNumber": page_number,
-                }
-                for document_id, page_number in sorted(page_selection.expanded_pages)
-            ],
-            "pageCandidates": [
-                {
-                    "rank": index,
-                    "score": round(page_hit.score, 4),
-                    "documentId": page_hit.document_id,
-                    "fileName": page_hit.file_name,
-                    "pageNumber": page_hit.page_number,
-                    "selected": (page_hit.document_id, page_hit.page_number) in page_selection.selected_pages,
-                    "expanded": (page_hit.document_id, page_hit.page_number) in page_selection.expanded_pages,
-                }
-                for index, page_hit in enumerate(page_selection.page_candidates, start=1)
-            ],
+            "expandedQueries": expanded_queries,
+            "retrievedCount": len(hits),
             "hits": [
                 {
-                    "rank": index,
-                    "score": round(score, 4),
-                    "chunkId": chunk.id,
+                    "rank": index + 1,
+                    "score": float(round(score, 4)),
                     "documentId": chunk.document_id,
                     "fileName": chunk.file_name,
                     "pageNumber": chunk.page_number,
+                    "chunkId": chunk.id,
+                    "sectionTitle": chunk.section_title,
                     "paragraphIndex": chunk.paragraph_index,
                     "paragraphEndIndex": chunk.paragraph_end_index,
-                    "sectionTitle": chunk.section_title,
-                    "text": self._abbreviate(chunk.text, 600),
+                    "textPreview": self._abbreviate(chunk.text, 300, preserve_newlines=False),
                 }
-                for index, (chunk, score) in enumerate(hits, start=1)
+                for index, (chunk, score) in enumerate(hits)
             ],
         }
 

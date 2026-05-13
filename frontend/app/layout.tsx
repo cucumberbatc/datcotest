@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Atlas PDF Chat",
+  title: "DocQ",
   description: "Grounded PDF Q&A workspace for the datco assignment"
 };
 
