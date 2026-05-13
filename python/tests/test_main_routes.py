@@ -7,7 +7,13 @@ from unittest.mock import patch
 
 from fastapi import HTTPException
 
-from app.main import get_highlighted_file, get_page_image, get_page_metadata, open_document_file
+from app.main import (
+    get_highlighted_file,
+    get_page_image,
+    get_page_metadata,
+    open_document_file,
+    select_highlight_rects,
+)
 from app.store import ChunkRecord, DocumentRecord, PageRecord
 
 
@@ -84,6 +90,45 @@ class MainRouteFileChecksTests(unittest.TestCase):
 
         self.assertEqual(404, context.exception.status_code)
         self.assertEqual("File not found on disk.", context.exception.detail)
+
+
+class HighlightRectSelectionTests(unittest.TestCase):
+    def test_select_highlight_rects_filters_page_like_rects(self) -> None:
+        document = _make_document(Path("sample.pdf"))
+        chunk = _make_chunk()
+        chunk.rects = [
+            (0.0, 0.0, 100.0, 100.0),
+            (10.0, 12.0, 24.0, 20.0),
+        ]
+
+        with patch("app.main.store.get_document", return_value=document), patch(
+            "app.main.get_page_size",
+            return_value=(100.0, 100.0),
+        ):
+            rects = select_highlight_rects(chunk, None, None)
+
+        self.assertEqual([(10.0, 12.0, 24.0, 20.0)], rects)
+
+    def test_select_highlight_rects_returns_empty_for_invalid_paragraph_range(self) -> None:
+        chunk = _make_chunk()
+
+        rects = select_highlight_rects(chunk, 3, 1)
+
+        self.assertEqual([], rects)
+
+    def test_select_highlight_rects_does_not_fallback_when_selected_rects_are_empty(self) -> None:
+        document = _make_document(Path("sample.pdf"))
+        chunk = _make_chunk()
+        chunk.rects = [(0.0, 0.0, 100.0, 100.0)]
+        chunk.paragraph_rects = [[]]
+
+        with patch("app.main.store.get_document", return_value=document), patch(
+            "app.main.get_page_size",
+            return_value=(100.0, 100.0),
+        ):
+            rects = select_highlight_rects(chunk, 1, 1)
+
+        self.assertEqual([], rects)
 
 
 if __name__ == "__main__":

@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 from types import SimpleNamespace
 
-from app.llamaparse_ingest import _markdown_to_paragraphs
+from app.llamaparse_ingest import AlignmentCandidate, _markdown_to_paragraphs, _match_block_rects
 from app.pdf_pipeline import ExtractedParagraph
 
 
@@ -46,9 +46,47 @@ class LlamaParseIngestAlignmentTests(unittest.TestCase):
 
         self.assertEqual([row_one, row_two], paragraphs[0].rects)
 
-    def test_unmatched_block_falls_back_to_page_rect(self) -> None:
-        page = SimpleNamespace(rect=SimpleNamespace(width=600, height=800))
-        page_rect = (0.0, 0.0, 600.0, 800.0)
+
+class LlamaParseHighlightFallbackTests(unittest.TestCase):
+    def test_match_block_rects_returns_empty_when_candidates_are_missing(self) -> None:
+        rects, matched_until = _match_block_rects(
+            text="Example paragraph",
+            candidates=[],
+            start_index=0,
+        )
+
+        self.assertEqual([], rects)
+        self.assertEqual(-1, matched_until)
+
+    def test_match_block_rects_returns_empty_when_alignment_score_is_too_low(self) -> None:
+        candidates = [
+            AlignmentCandidate(
+                paragraph=SimpleNamespace(rects=[(1.0, 1.0, 2.0, 2.0)]),
+                compact_text="differentcontent",
+                tokens={"different", "content"},
+            )
+        ]
+
+        rects, matched_until = _match_block_rects(
+            text="Nothing overlaps here",
+            candidates=candidates,
+            start_index=0,
+        )
+
+        self.assertEqual([], rects)
+        self.assertEqual(-1, matched_until)
+
+    def test_markdown_to_paragraphs_uses_empty_rects_for_empty_markdown(self) -> None:
+        page = SimpleNamespace(rect=SimpleNamespace(width=100.0, height=100.0))
+
+        paragraphs = _markdown_to_paragraphs("", page, [])
+
+        self.assertEqual(1, len(paragraphs))
+        self.assertEqual("", paragraphs[0].text)
+        self.assertEqual([], paragraphs[0].rects)
+
+    def test_unmatched_block_uses_empty_rects_instead_of_page_rect(self) -> None:
+        page = SimpleNamespace(rect=SimpleNamespace(width=600.0, height=800.0))
         alignment_paragraphs = [
             ExtractedParagraph(text="제품 개요", rects=[(10.0, 10.0, 200.0, 30.0)]),
         ]
@@ -59,7 +97,7 @@ class LlamaParseIngestAlignmentTests(unittest.TestCase):
             alignment_paragraphs=alignment_paragraphs,
         )
 
-        self.assertEqual([page_rect], paragraphs[0].rects)
+        self.assertEqual([], paragraphs[0].rects)
 
 
 if __name__ == "__main__":

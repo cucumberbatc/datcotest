@@ -784,17 +784,19 @@ def ingest_pdf(file_name: str, file_bytes: bytes, output_path: Path) -> Document
 
             if ocr_triggered:
                 ocr_result = _extract_ocr_paragraphs(page, document_id, page_number)
-                extracted_paragraphs = _merge_short_paragraphs(
-                    _merge_paragraph_sources(
-                        native_paragraphs,
-                        ocr_result.row_paragraphs,
-                        ocr_result.raw_block_paragraphs,
+                if pymupdf_text_chars >= settings.ocr_min_text_chars:
+                    extracted_paragraphs = native_paragraphs
+                else:
+                    extracted_paragraphs = _merge_short_paragraphs(
+                        _merge_paragraph_sources(
+                            native_paragraphs,
+                            ocr_result.row_paragraphs,
+                        )
                     )
-                )
 
             extracted_paragraphs = _assign_section_titles(extracted_paragraphs)
             ocr_text_chars = _paragraph_char_count(
-                _merge_paragraph_sources(ocr_result.row_paragraphs, ocr_result.raw_block_paragraphs)
+                ocr_result.row_paragraphs
             )
             logger.info(
                 "page=%s pymupdf_text_chars=%s has_large_image=%s ocr_triggered=%s ocr_result_count=%s ocr_text_chars=%s",

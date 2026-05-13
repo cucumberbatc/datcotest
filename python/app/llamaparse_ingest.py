@@ -163,13 +163,15 @@ def _extract_alignment_paragraphs(
     extracted_paragraphs = native_paragraphs
     if ocr_triggered:
         ocr_result = _extract_ocr_paragraphs(page, document_id, page_number)
-        extracted_paragraphs = _merge_short_paragraphs(
-            _merge_paragraph_sources(
-                native_paragraphs,
-                ocr_result.row_paragraphs,
-                ocr_result.raw_block_paragraphs,
+        if pymupdf_text_chars >= settings.ocr_min_text_chars:
+            extracted_paragraphs = native_paragraphs
+        else:
+            extracted_paragraphs = _merge_short_paragraphs(
+                _merge_paragraph_sources(
+                    native_paragraphs,
+                    ocr_result.row_paragraphs,
+                )
             )
-        )
 
     aligned = _assign_section_titles(extracted_paragraphs)
     logger.info(
@@ -188,9 +190,8 @@ def _markdown_to_paragraphs(
     page: fitz.Page,
     alignment_paragraphs: list[ExtractedParagraph],
 ) -> list[ExtractedParagraph]:
-    page_rect = (0.0, 0.0, float(page.rect.width), float(page.rect.height))
     if not markdown.strip():
-        return [ExtractedParagraph(text="", rects=[page_rect])]
+        return [ExtractedParagraph(text="", rects=[])]
 
     candidates = _alignment_candidates(alignment_paragraphs)
     paragraphs: list[ExtractedParagraph] = []
@@ -208,7 +209,6 @@ def _markdown_to_paragraphs(
             text=text,
             candidates=candidates,
             start_index=cursor,
-            page_rect=page_rect,
         )
         if matched_until >= cursor:
             cursor = matched_until + 1
@@ -221,7 +221,7 @@ def _markdown_to_paragraphs(
             )
         )
 
-    return paragraphs or [ExtractedParagraph(text=markdown.strip(), rects=[page_rect])]
+    return paragraphs or [ExtractedParagraph(text=markdown.strip(), rects=[])]
 
 
 def _split_markdown_blocks(markdown: str) -> list[str]:
@@ -274,15 +274,14 @@ def _match_block_rects(
     text: str,
     candidates: list[AlignmentCandidate],
     start_index: int,
-    page_rect: tuple[float, float, float, float],
 ) -> tuple[list[tuple[float, float, float, float]], int]:
     if not candidates:
-        return [page_rect], -1
+        return [], -1
 
     block_compact = _compact_text(_markdown_search_text(text))
     block_tokens = _tokenize(_markdown_search_text(text))
     if not block_compact and not block_tokens:
-        return [page_rect], -1
+        return [], -1
 
     best_score = 0.0
     best_span: tuple[int, int] | None = None
@@ -307,13 +306,13 @@ def _match_block_rects(
                 best_span = (candidate_start, candidate_end)
 
     if best_span is None or best_score < 0.33:
-        return [page_rect], -1
+        return [], -1
 
     rects: list[tuple[float, float, float, float]] = []
     for index in range(best_span[0], best_span[1] + 1):
         rects.extend(candidates[index].paragraph.rects)
 
-    return rects or [page_rect], best_span[1]
+    return rects, best_span[1]
 
 
 def _alignment_score(

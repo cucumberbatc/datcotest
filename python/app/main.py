@@ -33,6 +33,8 @@ logging.basicConfig(
     format="%(asctime)s | %(name)s | %(levelname)s | %(message)s",
     )
 logger = logging.getLogger(__name__)
+MAX_PAGE_LIKE_RECT_AREA_RATIO = 0.85
+MAX_PAGE_LIKE_RECT_DIMENSION_RATIO = 0.95
 
 app = FastAPI(title=settings.app_name)
 app.add_middleware(
@@ -275,19 +277,90 @@ def select_highlight_rects(
     paragraph_start: int | None,
     paragraph_end: int | None,
 ) -> list[tuple[float, float, float, float]]:
+    page_size = _page_size_for_chunk(chunk)
     if paragraph_start is None or paragraph_end is None:
-        return chunk.rects
+        return filter_valid_highlight_rects(chunk.rects, page_size=page_size)
 
     start_offset = max(paragraph_start - chunk.paragraph_index, 0)
     end_offset = min(paragraph_end - chunk.paragraph_index, len(chunk.paragraph_rects) - 1)
     if start_offset > end_offset:
-        return chunk.rects
+        return []
 
     selected: list[tuple[float, float, float, float]] = []
     for paragraph_rects in chunk.paragraph_rects[start_offset : end_offset + 1]:
         selected.extend(paragraph_rects)
 
-    return selected or chunk.rects
+    return filter_valid_highlight_rects(selected, page_size=page_size)
+
+
+def _page_size_for_chunk(chunk: ChunkRecord) -> tuple[float, float] | None:
+    document = store.get_document(chunk.document_id)
+    if document is None:
+        return None
+
+    try:
+        return get_page_size(document.file_path, chunk.page_number)
+    except HTTPException:
+        return None
+
+
+def filter_valid_highlight_rects(
+    rects: list[tuple[float, float, float, float]],
+    *,
+    page_size: tuple[float, float] | None = None,
+) -> list[tuple[float, float, float, float]]:
+    filtered: list[tuple[float, float, float, float]] = []
+    seen: set[tuple[int, int, int, int]] = set()
+
+    for rect in rects:
+        if len(rect) != 4:
+            continue
+
+        x0, y0, x1, y1 = rect
+        if x1 <= x0 or y1 <= y0:
+            continue
+        if x0 < 0 or y0 < 0:
+            continue
+
+        width = x1 - x0
+        height = y1 - y0
+        if page_size and _is_page_like_rect(width, height, page_size):
+            continue
+
+        rect_key = (
+            round(x0 * 1000),
+            round(y0 * 1000),
+            round(x1 * 1000),
+            round(y1 * 1000),
+        )
+        if rect_key in seen:
+            continue
+
+        seen.add(rect_key)
+        filtered.append(rect)
+
+    return filtered
+
+
+def _is_page_like_rect(
+    width: float,
+    height: float,
+    page_size: tuple[float, float],
+) -> bool:
+    page_width, page_height = page_size
+    if page_width <= 0 or page_height <= 0:
+        return False
+
+    area_ratio = (width * height) / max(page_width * page_height, 1.0)
+    width_ratio = width / page_width
+    height_ratio = height / page_height
+    return (
+        area_ratio >= MAX_PAGE_LIKE_RECT_AREA_RATIO
+        or (
+            width_ratio >= MAX_PAGE_LIKE_RECT_DIMENSION_RATIO
+            and height_ratio >= MAX_PAGE_LIKE_RECT_DIMENSION_RATIO
+        )
+    )
 
 
 def build_highlight_response(
