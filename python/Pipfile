@@ -19,6 +19,7 @@ kiwipiepy = "*"
 rank-bm25 = "*"
 sentence-transformers = "*"
 torch = "*"
+llama-cloud = "*"
 
 [dev-packages]
 

@@ -11,7 +11,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
 from app.config import get_settings
-from app.pdf_pipeline import build_highlighted_pdf, get_page_size, ingest_pdf, render_page_image, sanitize_filename
+from app.document_ingest import ingest_pdf
+from app.pdf_pipeline import build_highlighted_pdf, get_page_size, render_page_image, sanitize_filename
 from app.rag_service import rag_service
 from app.schemas import (
     AskRequest,

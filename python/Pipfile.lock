@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "38c910fcc4acf0ff01c6f2844c74ec6d5f5a0c2b326c8b39a8bc2b742cd7f363"
+            "sha256": "4e0df6ac1e97e003b130fb83a0f21d41b284cfaf324f4bddc97cfdbc07826883"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -843,11 +843,11 @@
         },
         "idna": {
             "hashes": [
-                "sha256:466d810d7a2cc1022bea9b037c39728d51ae7dad40d480fc9b7d7ecf98ba8ee3",
-                "sha256:e677eaf072e290f7b725f9acf0b3a2bd55f9fd6f7c70abe5f0e34823d0accf69"
+                "sha256:048adeaf8c2d788c40fee287673ccaa74c24ffd8dcf09ffa555a2fbb59f10ac8",
+                "sha256:ca962446ea538f7092a95e057da437618e886f4d349216d2b1e294abfdb65fdc"
             ],
             "markers": "python_version >= '3.8'",
-            "version": "==3.14"
+            "version": "==3.15"
         },
         "imagesize": {
             "hashes": [
@@ -1077,6 +1077,15 @@
             ],
             "markers": "python_version >= '3.10'",
             "version": "==0.8.3"
+        },
+        "llama-cloud": {
+            "hashes": [
+                "sha256:bfb09ccbaa4dab7df1829d23aeda39d638a2d36fa6f70fe79d5e82d970d887dc",
+                "sha256:cef6c28412e5118bebd26b5965f1f0968cba742b6f1f4677e3447696709e0763"
+            ],
+            "index": "pypi",
+            "markers": "python_version >= '3.9'",
+            "version": "==2.4.1"
         },
         "markdown-it-py": {
             "hashes": [

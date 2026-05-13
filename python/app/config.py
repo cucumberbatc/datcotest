@@ -37,6 +37,11 @@ class Settings(BaseSettings):
     ocr_det_model_name: str = "PP-OCRv5_mobile_det"
     ocr_rec_model_name: str = "korean_PP-OCRv5_mobile_rec"
     ocr_cpu_threads: int = 8
+    document_parse_backend: str = "pymupdf"
+    llama_cloud_api_key: str | None = None
+    llama_parse_tier: str = "agentic"
+    llama_parse_version: str = "latest"
+    llama_parse_fallback_to_pymupdf: bool = True
 
     @property
     def storage_root(self) -> Path:
