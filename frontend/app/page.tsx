@@ -1095,7 +1095,6 @@ export default function HomePage() {
                                     </a>
                                   ) : null}
                                 </div>
-                                <span className="confidence">score {activeSource.score.toFixed(2)}</span>
                               </div>
                             </div>
                           );

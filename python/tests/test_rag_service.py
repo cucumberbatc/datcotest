@@ -169,6 +169,21 @@ class RagServiceAnswerFlowTests(unittest.TestCase):
         self.assertTrue(context.startswith("Section: Electrical Specs"))
         self.assertIn("IP67 waterproof rated at 700mA.", context)
 
+    def test_clean_source_excerpt_strips_html_table_markup(self) -> None:
+        service = RagService()
+
+        cleaned = service._clean_source_excerpt(
+            "<table><tr><th>항목</th><th>사양</th></tr>"
+            "<tr><td>방수방진</td><td>IP67<br/>Indoor &amp; Outdoor</td></tr></table>"
+        )
+
+        self.assertNotIn("<table>", cleaned)
+        self.assertNotIn("<td>", cleaned)
+        self.assertIn("방수방진", cleaned)
+        self.assertIn("IP67", cleaned)
+        self.assertIn("Indoor & Outdoor", cleaned)
+        self.assertIn("\n", cleaned)
+
     def test_fallback_grounded_answer_uses_top_two_excerpts_only(self) -> None:
         service = RagService()
         sources = [

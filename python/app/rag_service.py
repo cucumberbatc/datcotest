@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from html import unescape
 import re
 import logging
 from dataclasses import dataclass
@@ -91,6 +92,14 @@ class PageSelection:
     filtering_enabled: bool
 
 
+@dataclass(slots=True)
+class LlmContextBlock:
+    citation_number: int
+    source: SourceResponse
+    context_text: str
+    kind: str
+
+
 class RagService:
     def __init__(self) -> None:
         self._settings = get_settings
@@ -173,8 +182,10 @@ class RagService:
             self._to_source(index + 1, chunk, score, question)
             for index, (chunk, score) in enumerate(retrieved)
         ]
+        context_blocks: list[LlmContextBlock] = []
         if settings.openai_api_key:
-            payload = self._answer_with_llm(question, source_candidates, scoped_documents)
+            context_blocks = self._build_llm_context_blocks(question, source_candidates, scoped_documents)
+            payload = self._answer_with_llm(question, context_blocks)
         else:
             payload = self._fallback_answer(source_candidates)
 
@@ -197,10 +208,17 @@ class RagService:
                     elapsedMs=int((perf_counter() - started_at) * 1000),
                 )
 
-        selected_numbers = set(payload.citations or [1])
-        selected_sources = [
-            source for source in source_candidates if source.citationNumber in selected_numbers
-        ]
+        if settings.openai_api_key:
+            selected_sources = self._select_sources_from_context_blocks(
+                payload.answer.strip(),
+                payload.citations,
+                context_blocks,
+            )
+        else:
+            selected_numbers = set(payload.citations or [1])
+            selected_sources = [
+                source for source in source_candidates if source.citationNumber in selected_numbers
+            ]
         if not selected_sources:
             selected_sources = source_candidates[: settings.rag_answer_top_k]
 
@@ -695,8 +713,7 @@ class RagService:
     def _answer_with_llm(
         self,
         question: str,
-        sources: list[SourceResponse],
-        scoped_documents: list[DocumentRecord],
+        context_blocks: list[LlmContextBlock],
     ) -> LlmAnswerPayload:
         settings = self._settings()
         llm = ChatOpenAI(
@@ -704,6 +721,8 @@ class RagService:
             model=settings.openai_chat_model,
             temperature=settings.openai_temperature,
         ).with_structured_output(LlmAnswerPayload, method="json_schema")
+        sources = [block.source for block in context_blocks]
+        scoped_documents: list[DocumentRecord] = []
 
         meta_context = []
         if len(scoped_documents) <= 3:
@@ -719,16 +738,16 @@ class RagService:
 
         retrieved_context = "\n\n".join(
             (
-                f"[{source.citationNumber}] file={source.fileName} "
-                f"page={source.pageNumber} "
-                f"paragraph={source.paragraphIndex}-{source.paragraphEndIndex} "
-                f"score={source.score}\n"
-                f"{self._source_context_for_llm(source)}"
+                f"[{block.citation_number}] file={block.source.fileName} "
+                f"page={block.source.pageNumber} "
+                f"paragraph={block.source.paragraphIndex}-{block.source.paragraphEndIndex} "
+                f"kind={block.kind}\n"
+                f"{block.context_text}"
             )
-            for source in sources
+            for block in context_blocks
         )
         
-        context = meta_text + retrieved_context
+        context = retrieved_context
         self._log_llm_context(question, context)
         prompt = ChatPromptTemplate.from_messages(
             [
@@ -766,14 +785,151 @@ class RagService:
         payload = llm.invoke(prompt.format_messages(question=question, context=context))
         self._log_llm_payload(payload)
         if not payload.answer and not payload.no_evidence:
-            return self._fallback_answer(sources)
+            return self._fallback_answer([block.source for block in context_blocks])
         return payload
+
+    def _build_llm_context_blocks(
+        self,
+        question: str,
+        sources: list[SourceResponse],
+        scoped_documents: list[DocumentRecord],
+    ) -> list[LlmContextBlock]:
+        blocks: list[LlmContextBlock] = []
+        seen_chunk_ids: set[str] = set()
+
+        for source in sources:
+            blocks.append(
+                LlmContextBlock(
+                    citation_number=source.citationNumber,
+                    source=source,
+                    context_text=self._source_context_for_llm(source),
+                    kind="retrieved",
+                )
+            )
+            seen_chunk_ids.add(source.chunkId)
+
+        next_citation = max((source.citationNumber for source in sources), default=0) + 1
+        if len(scoped_documents) <= 3:
+            for document in scoped_documents:
+                if not document.chunks:
+                    continue
+
+                first_chunk = document.chunks[0]
+                if first_chunk.id in seen_chunk_ids:
+                    continue
+
+                overview_source = self._to_source(next_citation, first_chunk, 0.0, question)
+                blocks.append(
+                    LlmContextBlock(
+                        citation_number=next_citation,
+                        source=overview_source,
+                        context_text=self._chunk_context_for_llm(first_chunk),
+                        kind="document_overview",
+                    )
+                )
+                seen_chunk_ids.add(first_chunk.id)
+                next_citation += 1
+
+        return blocks
+
+    def _select_sources_from_context_blocks(
+        self,
+        answer: str,
+        citations: list[int],
+        context_blocks: list[LlmContextBlock],
+    ) -> list[SourceResponse]:
+        if not context_blocks:
+            return []
+
+        block_by_citation = {
+            block.citation_number: block
+            for block in context_blocks
+        }
+        cited_blocks = [
+            block_by_citation[citation]
+            for citation in citations
+            if citation in block_by_citation
+        ]
+
+        validated_blocks = self._validate_cited_context_blocks(answer, cited_blocks, context_blocks)
+        return self._dedupe_sources([block.source for block in validated_blocks])
+
+    def _validate_cited_context_blocks(
+        self,
+        answer: str,
+        cited_blocks: list[LlmContextBlock],
+        context_blocks: list[LlmContextBlock],
+    ) -> list[LlmContextBlock]:
+        if not context_blocks:
+            return []
+
+        answer_terms = self._normalized_terms(answer)
+        if not answer_terms:
+            return cited_blocks or [context_blocks[0]]
+
+        valid_blocks = [
+            block
+            for block in cited_blocks
+            if self._context_block_overlap_score(answer_terms, block) > 0
+        ]
+        if valid_blocks:
+            return valid_blocks
+
+        best_block = max(
+            context_blocks,
+            key=lambda block: self._context_block_overlap_score(answer_terms, block),
+        )
+        if self._context_block_overlap_score(answer_terms, best_block) > 0:
+            return [best_block]
+
+        return cited_blocks or [context_blocks[0]]
+
+    @staticmethod
+    def _dedupe_sources(sources: list[SourceResponse]) -> list[SourceResponse]:
+        deduped: list[SourceResponse] = []
+        seen_chunk_ids: set[str] = set()
+        for source in sources:
+            if source.chunkId in seen_chunk_ids:
+                continue
+            seen_chunk_ids.add(source.chunkId)
+            deduped.append(source)
+        return deduped
+
+    @staticmethod
+    def _normalized_terms(text: str) -> set[str]:
+        compact = re.sub(r"<[^>]+>", " ", text)
+        compact = re.sub(r"\s+", " ", compact).strip().lower()
+        if not compact:
+            return set()
+
+        return {
+            token
+            for token in kiwi_tokenize(compact)
+            if token and len(token) >= 2
+        }
+
+    def _context_block_overlap_score(
+        self,
+        answer_terms: set[str],
+        block: LlmContextBlock,
+    ) -> float:
+        if not answer_terms:
+            return 0.0
+
+        block_terms = self._normalized_terms(block.context_text)
+        if not block_terms:
+            return 0.0
+
+        overlap = len(answer_terms & block_terms)
+        return overlap / max(len(answer_terms), 1)
 
     def _source_context_for_llm(self, source: SourceResponse) -> str:
         chunk = store.get_chunk(source.chunkId)
         if chunk is None:
             return source.excerpt
+        return self._chunk_context_for_llm(chunk)
 
+    def _chunk_context_for_llm(self, chunk: ChunkRecord) -> str:
         chunk_text = chunk.text
         if chunk.section_title and not chunk_text.startswith("Section:"):
             chunk_text = f"Section: {chunk.section_title}\n\n{chunk_text}"
@@ -836,6 +992,17 @@ class RagService:
             no_evidence_reason=None,
         )
 
+    def _clean_source_excerpt(self, text: str) -> str:
+        cleaned = unescape(text)
+        cleaned = re.sub(r"<br\s*/?>", "\n", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"</tr>", "\n", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"</p>|</div>", "\n", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"<[^>]+>", " ", cleaned)
+        cleaned = re.sub(r"[ \t]+", " ", cleaned)
+        cleaned = re.sub(r" *\n *", "\n", cleaned)
+        cleaned = re.sub(r"\n\s*\n+", "\n", cleaned)
+        return cleaned.strip()
+
     def _to_source(
         self,
         citation_number: int,
@@ -844,6 +1011,11 @@ class RagService:
         question: str,
     ) -> SourceResponse:
         evidence_start, evidence_end, evidence_text = self._best_evidence_span(question, chunk)
+        display_excerpt = self._abbreviate(
+            self._clean_source_excerpt(evidence_text),
+            SOURCE_EXCERPT_CHARS,
+            preserve_newlines=True,
+        )
         location_label = (
             f"p.{chunk.page_number} para {evidence_start}"
             if evidence_start == evidence_end
@@ -858,7 +1030,7 @@ class RagService:
             paragraphEndIndex=evidence_end,
             sectionTitle=chunk.section_title,
             locationLabel=location_label,
-            excerpt=self._abbreviate(evidence_text, SOURCE_EXCERPT_CHARS),
+            excerpt=display_excerpt,
             score=round(score, 4),
             chunkId=chunk.id,
             highlightFileUrl=(
