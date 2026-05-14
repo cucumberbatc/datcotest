@@ -8,6 +8,15 @@ PDF 기반 Q&A 과제 MVP
 - `backend`: Spring Boot 프로토타입 API (파일 구조만 생성됨, 실행 불필요)
 - `python`: LangChain, OpenAI, FAISS, PyMuPDF를 사용한 메인 RAG 서비스
 
+## 개발 환경
+
+- Python: 3.10.x
+- Node.js: 18 이상 권장
+- Python dependency manager: Pipenv
+- Frontend: Next.js
+- Main API: FastAPI on port 8000
+- Optional backend: Spring Boot
+
 ## 권장 아키텍처
 
 실제 과제 흐름을 위한 권장 경로:
@@ -23,27 +32,150 @@ PDF 기반 Q&A 과제 MVP
 
 ## 실행 방법
 
-### 준비 작업
+### 0. 사전 준비
 
-먼저 Python 가상환경과 모든 모델을 초기화해야 합니다.
+이 프로젝트의 Python RAG 서비스는 **Python 3.10.x** 기준으로 실행합니다.
+
+현재 `python/Pipfile`은 Python 3.10으로 고정되어 있으므로, lockfile과 동일한 환경을 사용하려면 Python 3.10.x를 사용하세요.
+
+#### Python 버전 확인
+
+```bash
+python --version
+```
+
+또는 환경에 따라:
+
+```bash
+python3 --version
+```
+
+Python 3.10이 없다면 먼저 설치합니다.
+
+#### macOS
+
+```bash
+brew install python@3.10
+```
+
+설치 후 버전 확인:
+
+```bash
+python3.10 --version
+```
+
+#### Windows
+
+Python 공식 설치 파일 또는 `winget`을 사용할 수 있습니다.
+
+```powershell
+winget install Python.Python.3.10
+```
+
+설치 후 버전 확인:
+
+```powershell
+python --version
+```
+
+---
+
+### 1. Pipenv 설치
+
+Python 의존성 관리는 `pipenv`를 사용합니다.
+
+#### macOS
+
+```bash
+brew install pipenv
+```
+
+또는 Python 3.10을 명시해서 pip로 설치합니다.
+
+```bash
+python3.10 -m pip install --user pipenv
+```
+
+#### Windows
+
+```powershell
+pip install pipenv
+```
+
+또는 Python 3.10을 명시해서 설치합니다.
+
+```powershell
+python -m pip install pipenv
+```
+
+설치 확인:
+
+```bash
+pipenv --version
+```
+
+---
+
+### 2. Python 가상환경 및 모델 초기화
 
 ```bash
 cd python
+pipenv --python 3.10
 pipenv install
-copy .env.example .env  # Windows 또는 cp .env.example .env (macOS/Linux)
-pipenv run python scripts/warmup.py  # 모든 모델 다운로드 및 초기화
 ```
 
-### 1. Python RAG 서비스 시작
+만약 `python3.10` 명령어가 별도로 잡혀 있다면 아래처럼 실행할 수 있습니다.
+
+```bash
+pipenv --python python3.10
+pipenv install
+```
+
+`.env` 파일을 생성합니다.
+
+#### Windows
+
+```powershell
+copy .env.example .env
+```
+
+#### macOS / Linux
+
+```bash
+cp .env.example .env
+```
+
+필요한 API Key와 설정값을 `.env`에 입력합니다.
+
+```env
+OPENAI_API_KEY=your_openai_api_key
+LLAMA_CLOUD_API_KEY=your_llama_cloud_api_key
+```
+
+모든 모델을 미리 다운로드하고 초기화합니다.
+
+```bash
+pipenv run python scripts/warmup.py
+```
+
+> 파일 업로드, OCR, 임베딩, reranker 모델 로딩은 초기 실행 시 시간이 걸릴 수 있으므로, 처음 실행 전 `warmup.py`를 먼저 실행하는 것을 권장합니다.
+
+---
+
+### 3. Python RAG 서비스 시작
 
 ```bash
 cd python
 pipenv run uvicorn app.main:app --port 8000
 ```
 
-파일 업로드, OCR, 임베딩 및 성능 테스트 시에는 `--reload` 옵션 없이 사용하세요.
+파일 업로드, OCR, 임베딩 및 성능 테스트 시에는 `--reload` 옵션 없이 사용하는 것을 권장합니다.
 
-### 2. Frontend 시작
+`--reload`는 요청 진행 중 서버를 재시작할 수 있어, OCR이나 임베딩처럼 시간이 걸리는 작업에서는 사용하지 않는 편이 안전합니다.
+
+---
+
+### 4. Frontend 시작
 
 ```bash
 cd frontend
@@ -53,13 +185,21 @@ npm run dev
 
 Frontend API 대상 설정:
 
-```bash
+```env
 NEXT_PUBLIC_API_BASE=http://localhost:8000/api
 ```
 
-### 3. Spring Backend (선택사항)
+`.env.local`을 사용하는 경우 `frontend/.env.local`에 아래 값을 설정합니다.
 
-기본적으로 파일 구조만 만들어져 있으므로 실행하지 않아도 됩니다.
+```env
+NEXT_PUBLIC_API_BASE=http://localhost:8000/api
+```
+
+---
+
+### 5. Spring Backend 선택 실행
+
+기본적으로 Spring Backend는 파일 구조만 만들어져 있으며, 현재 MVP 실행에는 필요하지 않습니다.
 
 필요시 실행:
 
@@ -73,15 +213,24 @@ mvn spring-boot:run
 - `POST /api/documents` - 문서 업로드
 - `GET /api/documents` - 문서 목록 조회
 - `GET /api/documents/{id}` - 문서 상세 조회
-- `GET /api/documents/{id}/file` - 강조 표시된 PDF 다운로드
+- `GET /api/documents/{id}/file` - 원본 PDF 조회
 - `DELETE /api/documents/{id}` - 문서 삭제
 - `POST /api/chat/ask` - Q&A 질문
+- `POST /api/chat/debug-retrieve` - 검색 결과 디버깅
+- `GET /api/documents/{id}/pages/{page_number}/metadata` - PDF 페이지 메타데이터 조회
+- `GET /api/documents/{id}/pages/{page_number}/image` - PDF 페이지 이미지 조회
+- `GET /api/documents/{id}/chunks/{chunk_id}/highlight` - 하이라이트 좌표 조회
+- `GET /api/documents/{id}/chunks/{chunk_id}/highlighted-file` - 강조 표시된 PDF 조회
 
 ## 주의사항
 
 - `python/` 폴더는 메인 구현 경로입니다.
-- `PyMuPDF`는 실제 PDF 텍스트 블록을 추출하고 강조 표시된 PDF를 생성합니다.
-- 현재 frontend 뷰어는 텍스트 기반입니다. 향후 PDF.js 뷰어로 전환할 예정입니다.
-- `Pipfile`과 `Pipfile.lock`은 Python 의존성의 소스입니다.
+- `PyMuPDF`는 PDF 텍스트 블록 추출, 페이지 이미지 렌더링, 하이라이트 PDF 생성을 담당합니다.
+- OCR은 PyMuPDF로 충분한 텍스트를 추출하지 못하는 스캔본/이미지 기반 PDF에서 주로 사용됩니다.
+- `LlamaParse`는 선택적으로 사용할 수 있으며, 실패 시 설정에 따라 PyMuPDF 경로로 fallback할 수 있습니다.
+- 현재 MVP에서는 `frontend`가 `python` FastAPI 서버를 직접 호출합니다.
+- `backend`는 선택 사항이며, 현재 실행하지 않아도 서비스 핵심 기능은 동작합니다.
+- `Pipfile`과 `Pipfile.lock`은 Python 의존성의 기준 파일입니다.
+- 파일 업로드, OCR, 임베딩, reranker 테스트 시에는 서버를 `--reload` 없이 실행하는 것을 권장합니다.
 
 아키텍처 참고사항은 [DESIGN.md](DESIGN.md)를 참조하세요.
