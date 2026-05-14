@@ -38,7 +38,6 @@ flowchart TD
 - `python`: LangChain, OpenAI, FAISS, PyMuPDF를 사용한 메인 RAG 서비스
 
 ## 개발 환경
-- feat/frontend 브랜치에서 실행 부탁드립니다
 - Python: 3.10.x
 - Node.js: 18 이상 권장
 - Python dependency manager: Pipenv
