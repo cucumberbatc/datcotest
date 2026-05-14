@@ -165,7 +165,7 @@ class RagService:
         if not scoped_documents:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No indexed documents available.",
+                detail="먼저 문서를 업로드해 주세요.",
             )
 
         retrieval_started_at = perf_counter()
@@ -210,8 +210,15 @@ class RagService:
             context_chars = sum(len(block.context_text) for block in context_blocks)
             context_block_count = len(context_blocks)
             llm_started_at = perf_counter()
-            payload = self._answer_with_llm(question, context_blocks)
-            llm_elapsed_ms = int((perf_counter() - llm_started_at) * 1000)
+            try:
+                payload = self._answer_with_llm(question, context_blocks)
+            except HTTPException:
+                raise
+            except Exception as exc:
+                logger.exception("LLM answer generation failed")
+                raise self._llm_failure_exception(exc) from exc
+            finally:
+                llm_elapsed_ms = int((perf_counter() - llm_started_at) * 1000)
         else:
             payload = self._fallback_answer(source_candidates)
 
@@ -295,7 +302,12 @@ class RagService:
             )),
             ("human", "{question}")
         ])
-        llm = ChatOpenAI(api_key=settings.openai_api_key, model=settings.openai_chat_model, temperature=0.3)
+        llm = ChatOpenAI(
+            api_key=settings.openai_api_key,
+            model=settings.openai_chat_model,
+            temperature=0.3,
+            timeout=settings.openai_timeout_seconds,
+        )
         try:
             response = llm.invoke(prompt.format_messages(question=question))
             queries = [q.strip("- ") for q in response.content.split("\n") if q.strip()]
@@ -906,6 +918,7 @@ class RagService:
             api_key=settings.openai_api_key,
             model=settings.openai_chat_model,
             temperature=settings.openai_temperature,
+            timeout=settings.openai_timeout_seconds,
         ).with_structured_output(LlmAnswerPayload, method="json_schema")
         sources = [block.source for block in context_blocks]
         scoped_documents: list[DocumentRecord] = []
@@ -973,6 +986,29 @@ class RagService:
         if not payload.answer and not payload.no_evidence:
             return self._fallback_answer([block.source for block in context_blocks])
         return payload
+
+    @staticmethod
+    def _llm_failure_exception(exc: Exception) -> HTTPException:
+        error_text = f"{type(exc).__name__}: {exc}".lower()
+        if "timeout" in error_text or "timed out" in error_text:
+            return HTTPException(
+                status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+                detail="답변 생성이 지연되고 있어요. 잠시 후 다시 시도해 주세요.",
+            )
+        if "rate" in error_text and "limit" in error_text:
+            return HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="답변 모델 요청 한도에 도달했어요. 잠시 후 다시 시도해 주세요.",
+            )
+        if "auth" in error_text or "api key" in error_text or "unauthorized" in error_text:
+            return HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="답변 모델 설정을 확인할 수 없어요. API 키 설정을 확인해 주세요.",
+            )
+        return HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="답변 모델 호출 중 오류가 발생했어요. 잠시 후 다시 시도해 주세요.",
+        )
 
     def _build_llm_context_blocks(
         self,

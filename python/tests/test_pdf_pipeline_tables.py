@@ -11,6 +11,7 @@ from app.pdf_pipeline import (
     ingest_pdf,
     _merge_short_paragraphs,
     _ocr_items_to_table_paragraphs,
+    _run_paddleocr,
 )
 
 
@@ -75,6 +76,27 @@ class PdfIngestValidationTests(unittest.TestCase):
 
         self.assertEqual(400, context.exception.status_code)
         self.assertIn("암호가 걸린 PDF", context.exception.detail)
+
+
+class OcrFailureHandlingTests(unittest.TestCase):
+    def test_run_paddleocr_raises_when_reader_is_unavailable(self) -> None:
+        with patch("app.pdf_pipeline._get_paddleocr_reader", return_value=None):
+            with self.assertRaises(HTTPException) as context:
+                _run_paddleocr(Path("page.png"))
+
+        self.assertEqual(503, context.exception.status_code)
+        self.assertIn("OCR 엔진", context.exception.detail)
+
+    def test_run_paddleocr_raises_when_prediction_fails(self) -> None:
+        reader = MagicMock()
+        reader.predict.side_effect = RuntimeError("ocr failed")
+
+        with patch("app.pdf_pipeline._get_paddleocr_reader", return_value=reader):
+            with self.assertRaises(HTTPException) as context:
+                _run_paddleocr(Path("page.png"))
+
+        self.assertEqual(500, context.exception.status_code)
+        self.assertIn("OCR 처리 중 오류", context.exception.detail)
 
 
 if __name__ == "__main__":

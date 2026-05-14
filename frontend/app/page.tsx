@@ -143,17 +143,40 @@ function formatBytes(bytes: number) {
 function parseErrorDetail(detail: string) {
   try {
     const payload = JSON.parse(detail) as { detail?: unknown };
-    if (typeof payload?.detail === "string") {
-      return payload.detail;
+    const value = payload?.detail;
+    if (typeof value === "string") {
+      return value;
     }
-    if (payload?.detail) {
-      return JSON.stringify(payload.detail);
+    if (Array.isArray(value)) {
+      const messages = value
+        .map((item) => {
+          if (item && typeof item === "object" && "msg" in item) {
+            return String((item as { msg: unknown }).msg);
+          }
+          return JSON.stringify(item);
+        })
+        .filter(Boolean);
+      if (messages.length > 0) {
+        return messages.join("\n");
+      }
+    }
+    if (value && typeof value === "object" && "message" in value) {
+      return String((value as { message: unknown }).message);
+    }
+    if (value) {
+      return JSON.stringify(value);
     }
   } catch {
     // fall back to text
   }
 
-  return detail || "Request failed.";
+  return detail || "요청 처리 중 오류가 발생했어요.";
+}
+
+async function readApiError(response: Response, fallback: string) {
+  const detail = await response.text();
+  const message = parseErrorDetail(detail);
+  return message === "요청 처리 중 오류가 발생했어요." ? fallback : message;
 }
 
 function formatUploadDate(isoDate: string) {
@@ -592,7 +615,7 @@ export default function HomePage() {
       cache: "no-store"
     });
     if (!response.ok) {
-      throw new Error("문서 목록을 불러오지 못했습니다.");
+      throw new Error("문서 목록을 불러오지 못했어요.");
     }
     const payload = (await response.json()) as DocumentSummary[];
     setDocuments(payload);
@@ -617,7 +640,7 @@ export default function HomePage() {
       cache: "no-store"
     });
     if (!response.ok) {
-      throw new Error("문서 상세 정보를 불러오지 못했습니다.");
+      throw new Error("문서 상세 정보를 불러오지 못했어요.");
     }
 
     const detail = (await response.json()) as DocumentDetail;
@@ -682,7 +705,7 @@ export default function HomePage() {
       setToast(`${files.length}개 PDF 업로드 및 인덱싱이 완료되었습니다.`);
       await loadDocuments();
     } catch (error) {
-      setToast(error instanceof Error ? error.message : "업로드 중 오류가 발생했습니다.");
+      setToast(error instanceof Error ? error.message : "업로드 중 오류가 발생했어요.");
     } finally {
       setUploading(false);
       setUploadProgress(0);
@@ -699,7 +722,7 @@ export default function HomePage() {
         method: "DELETE"
       });
       if (!response.ok) {
-        throw new Error("문서를 삭제하지 못했습니다.");
+        throw new Error("문서를 삭제하지 못했어요.");
       }
 
       setDocumentCache((current) => {
@@ -718,31 +741,13 @@ export default function HomePage() {
     }
   }
 
-  async function readErrorMessage(response: Response) {
-    const detail = await response.text();
-    try {
-      const payload = JSON.parse(detail) as { detail?: unknown };
-      if (typeof payload?.detail === "string") {
-        return payload.detail;
-      }
-      if (payload?.detail) {
-        return JSON.stringify(payload.detail);
-      }
-    } catch {
-      // fall back to text
-    }
-
-    // Response bodies can only be read once.
-    return detail || "요청 처리 중 오류가 발생했습니다.";
-  }
-
   async function openDocument(documentId: string) {
     setActiveDocId(documentId);
     setViewerDocId(documentId);
     try {
       await ensureDocumentLoaded(documentId);
     } catch (error) {
-      setToast(error instanceof Error ? error.message : "문서를 열지 못했습니다.");
+      setToast(error instanceof Error ? error.message : "문서를 열지 못했어요.");
     }
   }
 
@@ -753,7 +758,7 @@ export default function HomePage() {
     try {
       await ensureDocumentLoaded(source.documentId);
     } catch (error) {
-      setToast(error instanceof Error ? error.message : "근거 문서를 여는 중 오류가 발생했습니다.");
+      setToast(error instanceof Error ? error.message : "근거 문서를 여는 중 오류가 발생했어요.");
     }
   }
 
@@ -807,7 +812,7 @@ export default function HomePage() {
       });
 
       if (!response.ok) {
-        throw new Error(await response.text());
+        throw new Error(await readApiError(response, "답변 생성 중 오류가 발생했어요."));
       }
 
       const payload = (await response.json()) as AskResponse;
@@ -854,7 +859,7 @@ export default function HomePage() {
         }
       }, 24);
     } catch (error) {
-      setToast(error instanceof Error ? error.message : "질문 처리 중 오류가 발생했습니다.");
+      setToast(error instanceof Error ? error.message : "질문 처리 중 오류가 발생했어요.");
     } finally {
       setBusy(false);
     }
@@ -882,14 +887,14 @@ export default function HomePage() {
       });
 
       if (!response.ok) {
-        throw new Error(await response.text());
+        throw new Error(await readApiError(response, "검색 디버그 중 오류가 발생했어요."));
       }
 
       const payload = (await response.json()) as DebugRetrieveResult;
       setDebugResult(payload);
       setShowDebugModal(true);
     } catch (error) {
-      setToast(error instanceof Error ? error.message : "디버그 검색 중 오류가 발생했습니다.");
+      setToast(error instanceof Error ? error.message : "디버그 검색 중 오류가 발생했어요.");
     }
   }
 
@@ -1381,7 +1386,7 @@ function ViewerPane({
         cache: "no-store"
       });
       if (!response.ok) {
-        throw new Error("페이지 이미지를 불러오지 못했습니다.");
+        throw new Error(await readApiError(response, "페이지 이미지를 불러오지 못했어요."));
       }
 
       const payload = (await response.json()) as PageMetadata;
@@ -1393,7 +1398,7 @@ function ViewerPane({
 
     void loadPageMetadata().catch((error) => {
       if (!ignore) {
-        setViewerError(error instanceof Error ? error.message : "페이지 이미지를 불러오지 못했습니다.");
+        setViewerError(error instanceof Error ? error.message : "페이지 이미지를 불러오지 못했어요.");
         setPageMetadata(null);
       }
     });
@@ -1421,7 +1426,7 @@ function ViewerPane({
         { cache: "no-store" }
       );
       if (!response.ok) {
-        throw new Error("하이라이트 좌표를 불러오지 못했습니다.");
+        throw new Error(await readApiError(response, "하이라이트 좌표를 불러오지 못했어요."));
       }
 
       const payload = (await response.json()) as HighlightMetadata;
@@ -1432,7 +1437,7 @@ function ViewerPane({
 
     void loadHighlightMetadata().catch((error) => {
       if (!ignore) {
-        setViewerError(error instanceof Error ? error.message : "하이라이트 좌표를 불러오지 못했습니다.");
+        setViewerError(error instanceof Error ? error.message : "하이라이트 좌표를 불러오지 못했어요.");
         setHighlightMetadata(null);
       }
     });

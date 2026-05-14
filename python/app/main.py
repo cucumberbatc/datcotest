@@ -96,7 +96,7 @@ def to_detail(document: DocumentRecord) -> DocumentDetailResponse:
 def get_document_or_404(document_id: str) -> DocumentRecord:
     document = store.get_document(document_id)
     if not document:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found.")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="문서를 찾을 수 없어요.")
     return document
 
 
@@ -225,7 +225,7 @@ def delete_document(document_id: str) -> dict[str, bool]:
     with acquire_document_processing():
         document = store.remove_document(document_id)
         if not document:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found.")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="문서를 찾을 수 없어요.")
 
         if document.file_path.exists():
             document.file_path.unlink()
@@ -255,7 +255,7 @@ def open_document_file(document_id: str) -> FileResponse:
     if not document.file_path.exists():
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="File not found on disk.",
+            detail="문서 파일을 찾을 수 없어요.",
         )
     media_type = mimetypes.guess_type(document.file_path.name)[0] or "application/pdf"
     return FileResponse(document.file_path, media_type=media_type, filename=document.file_name)
@@ -270,9 +270,18 @@ def get_page_metadata(document_id: str, page_number: int) -> PageMetadataRespons
     if not document.file_path.exists():
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="File not found on disk.",
+            detail="문서 파일을 찾을 수 없어요.",
         )
-    width, height = get_page_size(document.file_path, page_number)
+    try:
+        width, height = get_page_size(document.file_path, page_number)
+    except HTTPException:
+        raise
+    except Exception as exc:  # pragma: no cover - defensive boundary
+        logger.exception("Failed to read page metadata for document=%s page=%s", document_id, page_number)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="페이지 정보를 불러오지 못했어요. 문서를 다시 열어 주세요.",
+        ) from exc
     return PageMetadataResponse(
         documentId=document.id,
         pageNumber=page_number,
@@ -288,14 +297,23 @@ def get_page_image(document_id: str, page_number: int) -> FileResponse:
     if not document.file_path.exists():
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="File not found on disk.",
+            detail="문서 파일을 찾을 수 없어요.",
         )
     output_path = settings.page_images_root / document.id / f"page_{page_number}.png"
-    render_page_image(document.file_path, output_path, page_number)
+    try:
+        render_page_image(document.file_path, output_path, page_number)
+    except HTTPException:
+        raise
+    except Exception as exc:  # pragma: no cover - defensive boundary
+        logger.exception("Failed to render page image for document=%s page=%s", document_id, page_number)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="페이지 이미지를 생성하지 못했어요. 문서를 다시 열어 주세요.",
+        ) from exc
     if not output_path.exists():
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="File not found on disk.",
+            detail="페이지 이미지를 찾을 수 없어요.",
         )
     return FileResponse(output_path, media_type="image/png", filename=f"{document.id}-page-{page_number}.png")
 
@@ -313,7 +331,7 @@ def get_highlight_metadata(
     document = get_document_or_404(document_id)
     chunk = store.get_chunk(chunk_id)
     if not chunk or chunk.document_id != document.id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chunk not found.")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="근거 문단을 찾을 수 없어요.")
 
     return build_highlight_response(document.id, chunk, paragraphStart, paragraphEnd)
 
@@ -328,11 +346,11 @@ def get_highlighted_file(
     document = get_document_or_404(document_id)
     chunk = store.get_chunk(chunk_id)
     if not chunk or chunk.document_id != document.id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chunk not found.")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="근거 문단을 찾을 수 없어요.")
     if not document.file_path.exists():
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="File not found on disk.",
+            detail="문서 파일을 찾을 수 없어요.",
         )
 
     highlight_suffix = (
@@ -341,16 +359,25 @@ def get_highlighted_file(
         else ""
     )
     output_path = settings.highlights_root / f"{document.id}-{chunk.id}{highlight_suffix}.pdf"
-    build_highlighted_pdf(
-        source_pdf=document.file_path,
-        output_pdf=output_path,
-        page_number=chunk.page_number,
-        rects=select_highlight_rects(chunk, paragraphStart, paragraphEnd),
-    )
+    try:
+        build_highlighted_pdf(
+            source_pdf=document.file_path,
+            output_pdf=output_path,
+            page_number=chunk.page_number,
+            rects=select_highlight_rects(chunk, paragraphStart, paragraphEnd),
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:  # pragma: no cover - defensive boundary
+        logger.exception("Failed to build highlighted PDF for document=%s chunk=%s", document_id, chunk_id)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="하이라이트 PDF를 생성하지 못했어요. 우측 뷰어에서 근거 문단을 확인해 주세요.",
+        ) from exc
     if not output_path.exists():
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="File not found on disk.",
+            detail="하이라이트 PDF를 찾을 수 없어요.",
         )
     return FileResponse(output_path, media_type="application/pdf", filename=f"{document.file_name}.highlighted.pdf")
 

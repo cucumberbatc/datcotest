@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     openai_chat_model: str = Field(default="gpt-4o-mini")
     openai_embedding_model: str = Field(default="text-embedding-3-small")
     openai_temperature: float = 0.0
+    openai_timeout_seconds: float = 30.0
     rag_page_candidate_k: int = 3
     rag_page_score_boost: float = 0.12
     rag_retrieval_k: int = 6

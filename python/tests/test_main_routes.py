@@ -3,6 +3,7 @@ from __future__ import annotations
 import unittest
 from datetime import datetime, timezone
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 from fastapi import HTTPException
@@ -59,7 +60,7 @@ class MainRouteFileChecksTests(unittest.TestCase):
                 open_document_file("doc-1")
 
         self.assertEqual(404, context.exception.status_code)
-        self.assertEqual("File not found on disk.", context.exception.detail)
+        self.assertEqual("문서 파일을 찾을 수 없어요.", context.exception.detail)
 
 
 class UploadValidationTests(unittest.TestCase):
@@ -108,7 +109,7 @@ class UploadValidationTests(unittest.TestCase):
                 get_page_metadata("doc-1", 1)
 
         self.assertEqual(404, context.exception.status_code)
-        self.assertEqual("File not found on disk.", context.exception.detail)
+        self.assertEqual("문서 파일을 찾을 수 없어요.", context.exception.detail)
 
     def test_get_page_image_raises_404_when_source_file_is_missing(self) -> None:
         document = _make_document(Path("missing-source.pdf"))
@@ -118,7 +119,23 @@ class UploadValidationTests(unittest.TestCase):
                 get_page_image("doc-1", 1)
 
         self.assertEqual(404, context.exception.status_code)
-        self.assertEqual("File not found on disk.", context.exception.detail)
+        self.assertEqual("문서 파일을 찾을 수 없어요.", context.exception.detail)
+
+    def test_get_page_image_returns_user_facing_error_when_rendering_fails(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            source_path = Path(temp_dir) / "sample.pdf"
+            source_path.write_bytes(b"%PDF-1.7")
+            document = _make_document(source_path)
+
+            with patch("app.main.get_document_or_404", return_value=document), patch(
+                "app.main.render_page_image",
+                side_effect=RuntimeError("render failed"),
+            ):
+                with self.assertRaises(HTTPException) as context:
+                    get_page_image("doc-1", 1)
+
+        self.assertEqual(500, context.exception.status_code)
+        self.assertIn("페이지 이미지를 생성하지 못했어요", context.exception.detail)
 
     def test_get_highlighted_file_raises_404_when_source_file_is_missing(self) -> None:
         document = _make_document(Path("missing-source.pdf"))
@@ -132,7 +149,7 @@ class UploadValidationTests(unittest.TestCase):
                 get_highlighted_file("doc-1", "chunk-1")
 
         self.assertEqual(404, context.exception.status_code)
-        self.assertEqual("File not found on disk.", context.exception.detail)
+        self.assertEqual("문서 파일을 찾을 수 없어요.", context.exception.detail)
 
 
 class HighlightRectSelectionTests(unittest.TestCase):

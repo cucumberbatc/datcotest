@@ -6,6 +6,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
 
+from fastapi import HTTPException
 from langchain_core.documents import Document
 
 from app.rag_service import RagService
@@ -203,6 +204,30 @@ class RagServiceAnswerFlowTests(unittest.TestCase):
         self.assertEqual("", response.answer)
         self.assertEqual([], response.sources)
         self.assertEqual("No grounded evidence", response.noEvidenceNote)
+
+    def test_llm_timeout_is_returned_as_user_facing_http_error(self) -> None:
+        service = RagService()
+        settings = SimpleNamespace(
+            openai_api_key="test-key",
+            rag_min_score=0.0,
+            rag_answer_top_k=3,
+            rag_strong_evidence_score=0.65,
+        )
+        chunk = _make_chunk()
+        document = _make_document(chunk)
+        source = _make_source(score=0.72, chunk_id=chunk.id)
+
+        service._settings = lambda: settings
+        service._retrieve = Mock(return_value=[(chunk, 0.72)])
+        service._to_source = Mock(return_value=source)
+        service._build_llm_context_blocks = Mock(return_value=[])
+        service._answer_with_llm = Mock(side_effect=TimeoutError("request timed out"))
+
+        with self.assertRaises(HTTPException) as context:
+            service.ask("Is it waterproof?", [document])
+
+        self.assertEqual(504, context.exception.status_code)
+        self.assertIn("답변 생성이 지연", context.exception.detail)
 
     def test_source_context_for_llm_adds_section_when_missing(self) -> None:
         service = RagService()

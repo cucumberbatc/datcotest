@@ -28,6 +28,8 @@ DEBUG_EXTRACTED_TEXT = True
 OCR_SOURCE_TITLE = "OCR extracted text"
 OCR_TABLE_PREFIX = "[OCR Table]"
 LARGE_IMAGE_AREA_RATIO = 0.08
+OCR_UNAVAILABLE_DETAIL = "OCR 엔진을 사용할 수 없어요. 스캔 문서를 처리하려면 OCR 설정과 설치 상태를 확인해 주세요."
+OCR_FAILED_DETAIL = "OCR 처리 중 오류가 발생했어요. 스캔 품질을 확인하거나 다른 PDF로 다시 시도해 주세요."
 logger = logging.getLogger(__name__)
 
 
@@ -398,14 +400,20 @@ def _render_ocr_image(
 def _run_paddleocr(image_path: Path) -> OcrParseResult:
     reader = _get_paddleocr_reader()
     if reader is None:
-        return OcrParseResult(items=[], raw_payloads=[])
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=OCR_UNAVAILABLE_DETAIL,
+        )
 
     try:
         raw_result = reader.predict(str(image_path))
         return _parse_paddleocr_result(raw_result)
     except Exception as exc:
-        logger.warning("PaddleOCR failed for %s: %s", image_path, exc)
-        return OcrParseResult(items=[], raw_payloads=[])
+        logger.exception("PaddleOCR failed for %s", image_path)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=OCR_FAILED_DETAIL,
+        ) from exc
 
 def _parse_paddleocr_result(raw_result: Any) -> OcrParseResult:
     if not raw_result:
@@ -873,7 +881,7 @@ def ingest_pdf(file_name: str, file_bytes: bytes, output_path: Path) -> Document
     except Exception as exc:  # pragma: no cover - library-specific error shape
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Failed to open PDF: {file_name}",
+            detail=f"문서를 읽을 수 없습니다. 암호가 걸렸거나 손상된 PDF일 수 있어요: {file_name}",
         ) from exc
 
     with pdf:
