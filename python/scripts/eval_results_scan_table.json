@@ -1,0 +1,80 @@
+[
+  {
+    "id": "scan_table_50w",
+    "question": "스캔본 표에서 50W의 모듈 개수와 광속은?",
+    "qtype": "ocr_table",
+    "expected_pages": [
+      1
+    ],
+    "expected_keywords": [
+      "50W",
+      "2",
+      "5700"
+    ],
+    "retrieved_pages": [
+      1,
+      1
+    ],
+    "retrieved_chunks": [
+      "9cf7121638154fd69c4de646e9549266-p1-c2",
+      "9cf7121638154fd69c4de646e9549266-p1-c1"
+    ],
+    "answer": "50W의 모듈 개수는 2개이고, 광속은 5700입니다.",
+    "source_pages": [
+      1,
+      1
+    ],
+    "source_chunks": [
+      "9cf7121638154fd69c4de646e9549266-p1-c2",
+      "9cf7121638154fd69c4de646e9549266-p1-c1"
+    ],
+    "recall_top3": true,
+    "recall_top5": true,
+    "answer_keyword_hit": true,
+    "source_page_hit": true,
+    "source_keyword_hit": true,
+    "highlight_rects_present": null,
+    "elapsed_ms": 26709,
+    "status": "ok",
+    "error": ""
+  },
+  {
+    "id": "scan_table_150w",
+    "question": "스캔본 표에서 150W의 구동 전류와 광속은?",
+    "qtype": "ocr_table",
+    "expected_pages": [
+      1
+    ],
+    "expected_keywords": [
+      "150W",
+      "700",
+      "17100"
+    ],
+    "retrieved_pages": [
+      1,
+      1
+    ],
+    "retrieved_chunks": [
+      "9cf7121638154fd69c4de646e9549266-p1-c2",
+      "9cf7121638154fd69c4de646e9549266-p1-c1"
+    ],
+    "answer": "스캔본 표에서 150W의 구동 전류는 700mA, 광속은 17100입니다.",
+    "source_pages": [
+      1,
+      1
+    ],
+    "source_chunks": [
+      "9cf7121638154fd69c4de646e9549266-p1-c2",
+      "9cf7121638154fd69c4de646e9549266-p1-c1"
+    ],
+    "recall_top3": true,
+    "recall_top5": true,
+    "answer_keyword_hit": true,
+    "source_page_hit": true,
+    "source_keyword_hit": true,
+    "highlight_rects_present": null,
+    "elapsed_ms": 14173,
+    "status": "ok",
+    "error": ""
+  }
+]

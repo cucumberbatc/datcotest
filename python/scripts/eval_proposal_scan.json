@@ -1,0 +1,11 @@
+{
+  "cases": [
+    {
+      "id": "proposal_budget_material",
+      "question": "\uc608\uc0b0\ud45c\uc5d0\uc11c \uc7ac\ub8cc\ube44 \uae08\uc561\uc740 \uc5bc\ub9c8\uc57c?",
+      "expected_pages": [7],
+      "expected_keywords": ["\uc7ac\ub8cc\ube44", "170,000"],
+      "qtype": "ocr_table"
+    }
+  ]
+}

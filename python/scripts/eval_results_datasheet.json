@@ -1,0 +1,580 @@
+[
+  {
+    "id": "ds_cover_product_name",
+    "question": "제품명 뭐야?",
+    "qtype": "spec",
+    "expected_pages": [
+      1
+    ],
+    "expected_keywords": [
+      "B2G 투광등 모듈",
+      "T-type Gen2.5"
+    ],
+    "retrieved_pages": [
+      1,
+      6,
+      9
+    ],
+    "retrieved_chunks": [
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p1-c1",
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p6-c1",
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p9-c1"
+    ],
+    "answer": "제품명은 **B2G 투광등 모듈 5000K**로 보입니다. 문서에 모델명/제품 코드로 **SL-P8R2W6451WW**, 그리고 함께 **T-type Gen2.5**가 표기되어 있습니다.",
+    "source_pages": [
+      1
+    ],
+    "source_chunks": [
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p1-c1"
+    ],
+    "recall_top3": true,
+    "recall_top5": true,
+    "answer_keyword_hit": true,
+    "source_page_hit": true,
+    "source_keyword_hit": false,
+    "highlight_rects_present": null,
+    "elapsed_ms": 36421,
+    "status": "ok",
+    "error": ""
+  },
+  {
+    "id": "ds_cover_product_code",
+    "question": "제품 코드는 뭐야?",
+    "qtype": "spec",
+    "expected_pages": [
+      1
+    ],
+    "expected_keywords": [
+      "SL-P8R2W6451WW"
+    ],
+    "retrieved_pages": [
+      1,
+      9,
+      6
+    ],
+    "retrieved_chunks": [
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p1-c1",
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p9-c1",
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p6-c1"
+    ],
+    "answer": "제품 코드는 **SL-P8R2W6451WW**입니다.",
+    "source_pages": [
+      1
+    ],
+    "source_chunks": [
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p1-c1"
+    ],
+    "recall_top3": true,
+    "recall_top5": true,
+    "answer_keyword_hit": true,
+    "source_page_hit": true,
+    "source_keyword_hit": true,
+    "highlight_rects_present": null,
+    "elapsed_ms": 28056,
+    "status": "ok",
+    "error": ""
+  },
+  {
+    "id": "ds_cover_color_temp",
+    "question": "색온도는?",
+    "qtype": "spec",
+    "expected_pages": [
+      1,
+      7
+    ],
+    "expected_keywords": [
+      "5000K"
+    ],
+    "retrieved_pages": [
+      1,
+      13,
+      7
+    ],
+    "retrieved_chunks": [
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p1-c1",
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p13-c1",
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p7-c1"
+    ],
+    "answer": "색온도는 5000K입니다.",
+    "source_pages": [
+      1,
+      7
+    ],
+    "source_chunks": [
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p1-c1",
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p7-c1"
+    ],
+    "recall_top3": true,
+    "recall_top5": true,
+    "answer_keyword_hit": true,
+    "source_page_hit": true,
+    "source_keyword_hit": true,
+    "highlight_rects_present": null,
+    "elapsed_ms": 28393,
+    "status": "ok",
+    "error": ""
+  },
+  {
+    "id": "ds_applications",
+    "question": "이 LED 모듈은 어떤 조명에 적합해?",
+    "qtype": "general",
+    "expected_pages": [
+      4
+    ],
+    "expected_keywords": [
+      "가로등",
+      "보안등",
+      "터널 조명"
+    ],
+    "retrieved_pages": [
+      4,
+      13,
+      1
+    ],
+    "retrieved_chunks": [
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p4-c1",
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p13-c1",
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p1-c1"
+    ],
+    "answer": "이 LED 모듈은 가로등, 보안등, 터널 조명 같은 조명에 적합하도록 설계되었습니다. 또한 투광등 모듈(B2G)로 표시되어 있습니다.",
+    "source_pages": [
+      4,
+      1
+    ],
+    "source_chunks": [
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p4-c1",
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p1-c1"
+    ],
+    "recall_top3": true,
+    "recall_top5": true,
+    "answer_keyword_hit": true,
+    "source_page_hit": true,
+    "source_keyword_hit": true,
+    "highlight_rects_present": null,
+    "elapsed_ms": 29562,
+    "status": "ok",
+    "error": ""
+  },
+  {
+    "id": "ds_engine_50w_module_count",
+    "question": "50W 엔진은 모듈이 몇 개야?",
+    "qtype": "table",
+    "expected_pages": [
+      4
+    ],
+    "expected_keywords": [
+      "50W",
+      "2"
+    ],
+    "retrieved_pages": [
+      11,
+      4,
+      15
+    ],
+    "retrieved_chunks": [
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p11-c1",
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p4-c2",
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p15-c1"
+    ],
+    "answer": "50W 엔진은 모듈 2개입니다.",
+    "source_pages": [
+      4,
+      15
+    ],
+    "source_chunks": [
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p4-c2",
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p15-c1"
+    ],
+    "recall_top3": true,
+    "recall_top5": true,
+    "answer_keyword_hit": true,
+    "source_page_hit": true,
+    "source_keyword_hit": true,
+    "highlight_rects_present": null,
+    "elapsed_ms": 28086,
+    "status": "ok",
+    "error": ""
+  },
+  {
+    "id": "ds_engine_200w_luminous_flux",
+    "question": "200W 엔진의 광속은 얼마야?",
+    "qtype": "table",
+    "expected_pages": [
+      4
+    ],
+    "expected_keywords": [
+      "200W",
+      "22800"
+    ],
+    "retrieved_pages": [
+      4,
+      4,
+      15
+    ],
+    "retrieved_chunks": [
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p4-c2",
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p4-c1",
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p15-c1"
+    ],
+    "answer": "200W 엔진의 광속은 22,800 lm입니다.",
+    "source_pages": [
+      4,
+      4
+    ],
+    "source_chunks": [
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p4-c2",
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p4-c1"
+    ],
+    "recall_top3": true,
+    "recall_top5": true,
+    "answer_keyword_hit": true,
+    "source_page_hit": true,
+    "source_keyword_hit": true,
+    "highlight_rects_present": null,
+    "elapsed_ms": 27524,
+    "status": "ok",
+    "error": ""
+  },
+  {
+    "id": "ds_basic_led_model",
+    "question": "LED 모델은 뭐야?",
+    "qtype": "table",
+    "expected_pages": [
+      6
+    ],
+    "expected_keywords": [
+      "Samsung High Power LED"
+    ],
+    "retrieved_pages": [
+      6,
+      13,
+      4
+    ],
+    "retrieved_chunks": [
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p6-c1",
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p13-c1",
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p4-c1"
+    ],
+    "answer": "문서에 따르면 LED 모델은 **Samsung High Power LED**입니다.",
+    "source_pages": [
+      6
+    ],
+    "source_chunks": [
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p6-c1"
+    ],
+    "recall_top3": true,
+    "recall_top5": true,
+    "answer_keyword_hit": true,
+    "source_page_hit": true,
+    "source_keyword_hit": true,
+    "highlight_rects_present": null,
+    "elapsed_ms": 29206,
+    "status": "ok",
+    "error": ""
+  },
+  {
+    "id": "ds_basic_weight",
+    "question": "무게는 얼마야?",
+    "qtype": "table",
+    "expected_pages": [
+      6
+    ],
+    "expected_keywords": [
+      "295.0",
+      "20"
+    ],
+    "retrieved_pages": [
+      6,
+      9,
+      1
+    ],
+    "retrieved_chunks": [
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p6-c1",
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p9-c1",
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p1-c1"
+    ],
+    "answer": "무게는 295.0g ± 20g입니다.",
+    "source_pages": [
+      6
+    ],
+    "source_chunks": [
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p6-c1"
+    ],
+    "recall_top3": true,
+    "recall_top5": true,
+    "answer_keyword_hit": true,
+    "source_page_hit": true,
+    "source_keyword_hit": true,
+    "highlight_rects_present": null,
+    "elapsed_ms": 29102,
+    "status": "ok",
+    "error": ""
+  },
+  {
+    "id": "ds_basic_dc_current",
+    "question": "구동 DC 전류는?",
+    "qtype": "table",
+    "expected_pages": [
+      6
+    ],
+    "expected_keywords": [
+      "700mA"
+    ],
+    "retrieved_pages": [
+      6,
+      4,
+      7
+    ],
+    "retrieved_chunks": [
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p6-c1",
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p4-c2",
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p7-c1"
+    ],
+    "answer": "구동 DC 전류는 TYP. 700mA입니다. 문서의 전기적 특성 표에서는 구동 전류가 700mA(최대 1200mA)로, 기본 사양에는 DC 모듈의 구동 전류가 TYP. 700mA로 표시되어 있습니다.",
+    "source_pages": [
+      6,
+      7
+    ],
+    "source_chunks": [
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p6-c1",
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p7-c1"
+    ],
+    "recall_top3": true,
+    "recall_top5": true,
+    "answer_keyword_hit": true,
+    "source_page_hit": true,
+    "source_keyword_hit": true,
+    "highlight_rects_present": null,
+    "elapsed_ms": 28515,
+    "status": "ok",
+    "error": ""
+  },
+  {
+    "id": "ds_basic_ip_rating",
+    "question": "방수방진 등급은?",
+    "qtype": "table",
+    "expected_pages": [
+      6
+    ],
+    "expected_keywords": [
+      "IP67"
+    ],
+    "retrieved_pages": [
+      6,
+      10,
+      15
+    ],
+    "retrieved_chunks": [
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p6-c1",
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p10-c1",
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p15-c1"
+    ],
+    "answer": "방수방진 등급은 IP67입니다.",
+    "source_pages": [
+      6
+    ],
+    "source_chunks": [
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p6-c1"
+    ],
+    "recall_top3": true,
+    "recall_top5": true,
+    "answer_keyword_hit": true,
+    "source_page_hit": true,
+    "source_keyword_hit": true,
+    "highlight_rects_present": null,
+    "elapsed_ms": 28103,
+    "status": "ok",
+    "error": ""
+  },
+  {
+    "id": "ds_electrical_drive_voltage",
+    "question": "구동 전압의 TYP 값은?",
+    "qtype": "table",
+    "expected_pages": [
+      7
+    ],
+    "expected_keywords": [
+      "29.0"
+    ],
+    "retrieved_pages": [
+      7,
+      6,
+      4
+    ],
+    "retrieved_chunks": [
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p7-c1",
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p6-c1",
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p4-c2"
+    ],
+    "answer": "구동 전압의 TYP 값은 29.0V입니다.",
+    "source_pages": [
+      7
+    ],
+    "source_chunks": [
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p7-c1"
+    ],
+    "recall_top3": true,
+    "recall_top5": true,
+    "answer_keyword_hit": true,
+    "source_page_hit": true,
+    "source_keyword_hit": true,
+    "highlight_rects_present": null,
+    "elapsed_ms": 29366,
+    "status": "ok",
+    "error": ""
+  },
+  {
+    "id": "ds_electrical_max_current",
+    "question": "구동 전류의 MAX 값은?",
+    "qtype": "table",
+    "expected_pages": [
+      7
+    ],
+    "expected_keywords": [
+      "1200"
+    ],
+    "retrieved_pages": [
+      7,
+      4,
+      2
+    ],
+    "retrieved_chunks": [
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p7-c1",
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p4-c2",
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p2-c1"
+    ],
+    "answer": "구동 전류의 MAX 값은 1.2A(=1200mA)입니다.",
+    "source_pages": [
+      7,
+      2
+    ],
+    "source_chunks": [
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p7-c1",
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p2-c1"
+    ],
+    "recall_top3": true,
+    "recall_top5": true,
+    "answer_keyword_hit": true,
+    "source_page_hit": true,
+    "source_keyword_hit": true,
+    "highlight_rects_present": null,
+    "elapsed_ms": 27760,
+    "status": "ok",
+    "error": ""
+  },
+  {
+    "id": "ds_optical_flux_typ",
+    "question": "광속의 TYP 값은?",
+    "qtype": "table",
+    "expected_pages": [
+      7
+    ],
+    "expected_keywords": [
+      "2900"
+    ],
+    "retrieved_pages": [
+      4,
+      6,
+      4
+    ],
+    "retrieved_chunks": [
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p4-c2",
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p6-c1",
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p4-c1"
+    ],
+    "answer": "문서에서 확인되는 광속 값은 모듈 개수와 소비전력에 따라 다음과 같습니다: 25W는 2850 lm, 50W는 5700 lm, 75W는 8550 lm, 100W는 11400 lm, 150W는 17100 lm, 200W는 22800 lm입니다. 다만 ‘TYP 값’이라는 항목의 단일 광속 값은 문맥에서 별도로 명시되어 있지 않고, 광속은 공칭값(nominal values)이라고만 되어 있습니다.",
+    "source_pages": [
+      4,
+      4
+    ],
+    "source_chunks": [
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p4-c2",
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p4-c1"
+    ],
+    "recall_top3": false,
+    "recall_top5": false,
+    "answer_keyword_hit": false,
+    "source_page_hit": false,
+    "source_keyword_hit": false,
+    "highlight_rects_present": null,
+    "elapsed_ms": 28442,
+    "status": "ok",
+    "error": ""
+  },
+  {
+    "id": "ds_pack_quantity_box",
+    "question": "BOX의 포장 수량은?",
+    "qtype": "table",
+    "expected_pages": [
+      11
+    ],
+    "expected_keywords": [
+      "12 ea"
+    ],
+    "retrieved_pages": [
+      12,
+      11,
+      6
+    ],
+    "retrieved_chunks": [
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p12-c1",
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p11-c1",
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p6-c1"
+    ],
+    "answer": "BOX의 포장 수량은 12개입니다. 문서의 포장 사양에서 PACKING Quantity가 TRAY 6 ea, BOX 12 ea, PALLET 384 ea로 표시되어 있고, 포장 방법에서도 한 박스에 2개의 단으로 총 12개 모듈로 구성된다고 되어 있습니다.",
+    "source_pages": [
+      11,
+      12
+    ],
+    "source_chunks": [
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p11-c1",
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p12-c1"
+    ],
+    "recall_top3": true,
+    "recall_top5": true,
+    "answer_keyword_hit": true,
+    "source_page_hit": true,
+    "source_keyword_hit": true,
+    "highlight_rects_present": null,
+    "elapsed_ms": 29575,
+    "status": "ok",
+    "error": ""
+  },
+  {
+    "id": "ds_psu_100w",
+    "question": "100W 엔진의 권장 PSU 모델은?",
+    "qtype": "table",
+    "expected_pages": [
+      15
+    ],
+    "expected_keywords": [
+      "SL-LA142A001KR"
+    ],
+    "retrieved_pages": [
+      15,
+      4,
+      4
+    ],
+    "retrieved_chunks": [
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p15-c1",
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p4-c2",
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p4-c1"
+    ],
+    "answer": "100W 엔진의 권장 PSU 모델은 **SL-EPS000590WW**입니다. (인증: CE/UL, 정격전압: 90-305Vac)",
+    "source_pages": [
+      15
+    ],
+    "source_chunks": [
+      "7b76cc30e9b04ce59587ab00dcaaa4d7-p15-c1"
+    ],
+    "recall_top3": true,
+    "recall_top5": true,
+    "answer_keyword_hit": false,
+    "source_page_hit": true,
+    "source_keyword_hit": true,
+    "highlight_rects_present": null,
+    "elapsed_ms": 28654,
+    "status": "ok",
+    "error": ""
+  }
+]

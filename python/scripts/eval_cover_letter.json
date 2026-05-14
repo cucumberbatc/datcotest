@@ -1,0 +1,18 @@
+{
+  "cases": [
+    {
+      "id": "cover_letter_role",
+      "question": "\ucc44\uc6a9\uc9c1\ubb34\ub294 \ubb50\uc57c?",
+      "expected_pages": [1],
+      "expected_keywords": ["AI \uc11c\ube44\uc2a4 \uac1c\ubc1c"],
+      "qtype": "general"
+    },
+    {
+      "id": "cover_letter_requirement",
+      "question": "\uc790\uaca9\uc694\uac74\uc5d0\ub294 \uc5b4\ub5a4 \uac1c\ubc1c \uacbd\ud5d8\uc774 \uc788\uc5b4?",
+      "expected_pages": [1],
+      "expected_keywords": ["Python", "Java"],
+      "qtype": "general"
+    }
+  ]
+}

@@ -1,0 +1,109 @@
+{
+  "cases": [
+    {
+      "id": "ds_cover_product_name",
+      "question": "\uc81c\ud488\uba85 \ubb50\uc57c?",
+      "expected_pages": [1],
+      "expected_keywords": ["B2G \ud22c\uad11\ub4f1 \ubaa8\ub4c8", "T-type Gen2.5"],
+      "qtype": "spec"
+    },
+    {
+      "id": "ds_cover_product_code",
+      "question": "\uc81c\ud488 \ucf54\ub4dc\ub294 \ubb50\uc57c?",
+      "expected_pages": [1],
+      "expected_keywords": ["SL-P8R2W6451WW"],
+      "qtype": "spec"
+    },
+    {
+      "id": "ds_cover_color_temp",
+      "question": "\uc0c9\uc628\ub3c4\ub294?",
+      "expected_pages": [1, 7],
+      "expected_keywords": ["5000K"],
+      "qtype": "spec"
+    },
+    {
+      "id": "ds_applications",
+      "question": "\uc774 LED \ubaa8\ub4c8\uc740 \uc5b4\ub5a4 \uc870\uba85\uc5d0 \uc801\ud569\ud574?",
+      "expected_pages": [4],
+      "expected_keywords": ["\uac00\ub85c\ub4f1", "\ubcf4\uc548\ub4f1", "\ud130\ub110 \uc870\uba85"],
+      "qtype": "general"
+    },
+    {
+      "id": "ds_engine_50w_module_count",
+      "question": "50W \uc5d4\uc9c4\uc740 \ubaa8\ub4c8\uc774 \uba87 \uac1c\uc57c?",
+      "expected_pages": [4],
+      "expected_keywords": ["50W", "2"],
+      "qtype": "table"
+    },
+    {
+      "id": "ds_engine_200w_luminous_flux",
+      "question": "200W \uc5d4\uc9c4\uc758 \uad11\uc18d\uc740 \uc5bc\ub9c8\uc57c?",
+      "expected_pages": [4],
+      "expected_keywords": ["200W", "22800"],
+      "qtype": "table"
+    },
+    {
+      "id": "ds_basic_led_model",
+      "question": "LED \ubaa8\ub378\uc740 \ubb50\uc57c?",
+      "expected_pages": [6],
+      "expected_keywords": ["Samsung High Power LED"],
+      "qtype": "table"
+    },
+    {
+      "id": "ds_basic_weight",
+      "question": "\ubb34\uac8c\ub294 \uc5bc\ub9c8\uc57c?",
+      "expected_pages": [6],
+      "expected_keywords": ["295.0", "20"],
+      "qtype": "table"
+    },
+    {
+      "id": "ds_basic_dc_current",
+      "question": "\uad6c\ub3d9 DC \uc804\ub958\ub294?",
+      "expected_pages": [6],
+      "expected_keywords": ["700mA"],
+      "qtype": "table"
+    },
+    {
+      "id": "ds_basic_ip_rating",
+      "question": "\ubc29\uc218\ubc29\uc9c4 \ub4f1\uae09\uc740?",
+      "expected_pages": [6],
+      "expected_keywords": ["IP67"],
+      "qtype": "table"
+    },
+    {
+      "id": "ds_electrical_drive_voltage",
+      "question": "\uad6c\ub3d9 \uc804\uc555\uc758 TYP \uac12\uc740?",
+      "expected_pages": [7],
+      "expected_keywords": ["29.0"],
+      "qtype": "table"
+    },
+    {
+      "id": "ds_electrical_max_current",
+      "question": "\uad6c\ub3d9 \uc804\ub958\uc758 MAX \uac12\uc740?",
+      "expected_pages": [7],
+      "expected_keywords": ["1200"],
+      "qtype": "table"
+    },
+    {
+      "id": "ds_optical_flux_typ",
+      "question": "\uad11\uc18d\uc758 TYP \uac12\uc740?",
+      "expected_pages": [7],
+      "expected_keywords": ["2900"],
+      "qtype": "table"
+    },
+    {
+      "id": "ds_pack_quantity_box",
+      "question": "BOX\uc758 \ud3ec\uc7a5 \uc218\ub7c9\uc740?",
+      "expected_pages": [11],
+      "expected_keywords": ["12 ea"],
+      "qtype": "table"
+    },
+    {
+      "id": "ds_psu_100w",
+      "question": "100W \uc5d4\uc9c4\uc758 \uad8c\uc7a5 PSU \ubaa8\ub378\uc740?",
+      "expected_pages": [15],
+      "expected_keywords": ["SL-LA142A001KR"],
+      "qtype": "table"
+    }
+  ]
+}

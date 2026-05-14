@@ -238,11 +238,11 @@ class RagService:
         
         prompt = ChatPromptTemplate.from_messages([
             ("system", (
-                "당신은 RAG 시스템의 검색어 최적화 에이전트입니다. 사용자의 질문을 바탕으로, 검색 엔진(Vector 및 Keyword)이 문서를 잘 찾을 수 있도록 다음을 유추하여 3줄로 생성하세요.\n"
-                "1. 가상의 답변 문장 (HyDE): 문서에 실제로 적혀있을 법한 1~2문장의 평서문 답변.\n"
-                "2. 관련 문서 메타데이터 유추: 질문에 답하기 위해 문서에 포함되어 있을 법한 항목명 (예: 누가 작성했는지 묻는다면 팀명, 소속, 저자 등 유추)\n"
-                "3. 핵심 검색 키워드 나열\n"
-                "하드코딩된 규칙 없이, 질문의 맥락을 파악해 가장 그럴싸한 문서 내용을 상상해서 작성하세요. 줄바꿈으로만 구분하고 번호는 매기지 마세요."
+                "당신은 한국어 RAG 검색어 확장기입니다. 사용자의 질문을 문서 검색에 잘 걸리는 표현으로 바꾸세요.\n"
+                "문서에 실제로 쓰였을 법한 표면어, 항목명, 제목, 명사구, 동의어, 상위어/하위어를 다양하게 포함하세요.\n"
+                "질문에 없는 특정 정답을 지어내지 말고, 검색에 도움이 되는 표현만 만드세요.\n"
+                "출력은 4줄 이내로 작성하고, 각 줄은 독립적인 검색 질의가 되게 하세요.\n"
+                "번호, 설명, 따옴표, 불릿은 쓰지 마세요."
             )),
             ("human", "{question}")
         ])
@@ -252,7 +252,8 @@ class RagService:
             queries = [q.strip("- ") for q in response.content.split("\n") if q.strip()]
             if not queries:
                 return [question]
-            return [question] + queries[:3]
+            expansion_k = max(getattr(settings, "rag_query_expansion_k", 2), 0)
+            return [question] + queries[:expansion_k]
         except Exception as e:
             logger.error("Query expansion failed: %s", e)
             return [question]
@@ -261,13 +262,14 @@ class RagService:
         self,
         question: str,
         scoped_documents: list[DocumentRecord],
+        expanded_queries: list[str] | None = None,
     ) -> list[tuple[ChunkRecord, float]]:
         settings = self._settings()
         allowed_ids = {document.id for document in scoped_documents}
         vector_store = store.vector_store
 
         # 1. Query Expansion
-        expanded_queries = self._generate_queries(question)
+        expanded_queries = expanded_queries or self._generate_queries(question)
         if getattr(settings, "rag_debug", True):
             logger.info("========== EXPANDED QUERIES ==========")
             logger.info("\n".join(expanded_queries))
@@ -275,12 +277,14 @@ class RagService:
         page_candidate_k = max(getattr(settings, "rag_page_candidate_k", 3), 1)
         retrieval_k = getattr(settings, "rag_retrieval_k", 12)
         answer_top_k = getattr(settings, "rag_answer_top_k", 5)
+        configured_candidate_pool_k = getattr(settings, "rag_candidate_pool_k", 12)
+        candidate_pool_k = max(configured_candidate_pool_k, retrieval_k, answer_top_k)
         
         # 2. Vector Search (Multi-query)
         raw_hits = []
         seen_vector_docs = set()
         for q in expanded_queries:
-            q_hits = self._search_raw_vector_hits(q, retrieval_k, vector_store)
+            q_hits = self._search_raw_vector_hits(q, candidate_pool_k, vector_store)
             for doc, score in q_hits:
                 doc_key = (doc.metadata.get("document_id"), doc.metadata.get("chunk_id"))
                 if doc_key not in seen_vector_docs:
@@ -305,7 +309,20 @@ class RagService:
             expanded_queries,
             scoped_documents,
             allowed_pages=allowed_pages,
+            limit=candidate_pool_k,
         )
+        if allowed_pages is not None:
+            global_lexical_hits = self._lexical_retrieve(
+                expanded_queries,
+                scoped_documents,
+                allowed_pages=None,
+                limit=candidate_pool_k,
+            )
+            lexical_hits = self._merge_same_channel_hits(
+                lexical_hits,
+                global_lexical_hits,
+                limit=candidate_pool_k,
+            )
         self._log_retrieval_hits("LEXICAL HITS", question, lexical_hits)
 
         if vector_store is None:
@@ -336,15 +353,35 @@ class RagService:
             normalized_score = 1 / (1 + float(score))
             vector_hits.append((chunk, normalized_score))
 
-            if len(vector_hits) >= retrieval_k:
+            if len(vector_hits) >= candidate_pool_k:
                 break
+
+        if allowed_pages is not None:
+            for doc, score in raw_hits:
+                metadata = doc.metadata
+                document_id = str(metadata["document_id"])
+                chunk_id = str(metadata["chunk_id"])
+
+                if document_id not in allowed_ids or chunk_id in seen_chunk_ids:
+                    continue
+
+                chunk = store.get_chunk(chunk_id)
+                if chunk is None:
+                    continue
+
+                seen_chunk_ids.add(chunk_id)
+                normalized_score = 1 / (1 + float(score))
+                vector_hits.append((chunk, normalized_score))
+
+                if len(vector_hits) >= candidate_pool_k:
+                    break
 
         self._log_retrieval_hits("VECTOR HITS", question, vector_hits)
 
         merged = self._merge_retrieval_hits(
             vector_hits=vector_hits,
             lexical_hits=lexical_hits,
-            limit=retrieval_k,
+            limit=candidate_pool_k,
             page_scores=page_selection.page_score_lookup,
         )
 
@@ -353,15 +390,17 @@ class RagService:
         # 4. Cross-Encoder Re-ranking
         if merged:
             reranker = self._get_reranker()
-            pairs = [[question, chunk.text] for chunk, score in merged]
+            rerank_top_k = min(max(getattr(settings, "rag_rerank_top_k", 8), answer_top_k), len(merged))
+            rerank_candidates = merged[:rerank_top_k]
+            pairs = [[question, chunk.text] for chunk, score in rerank_candidates]
             rerank_scores = reranker.predict(pairs)
             
             reranked = []
             for i, score in enumerate(rerank_scores):
-                reranked.append((merged[i][0], float(score)))
+                reranked.append((rerank_candidates[i][0], float(score)))
                 
             reranked.sort(key=lambda item: item[1], reverse=True)
-            merged = reranked
+            merged = reranked + merged[rerank_top_k:]
             self._log_retrieval_hits("RERANKED HITS", question, merged)
 
         final_hits = merged[:answer_top_k]
@@ -388,6 +427,7 @@ class RagService:
         expanded_queries: list[str],
         scoped_documents: list[DocumentRecord],
         allowed_pages: set[tuple[str, int]] | None = None,
+        limit: int | None = None,
     ) -> list[tuple[ChunkRecord, float]]:
         settings = self._settings()
         
@@ -402,28 +442,45 @@ class RagService:
         if not allowed_chunks:
             return []
 
-        tokenized_corpus = [kiwi_tokenize(chunk.text) for chunk in allowed_chunks]
+        tokenized_items = [
+            (chunk, self._lexical_tokens(chunk.text))
+            for chunk in allowed_chunks
+        ]
+        indexed_items = [
+            (chunk, tokens)
+            for chunk, tokens in tokenized_items
+            if tokens
+        ]
+        if not indexed_items:
+            logger.info("BM25 chunk retrieval skipped: no lexical tokens in scoped chunks.")
+            return []
+
+        indexed_chunks = [chunk for chunk, _tokens in indexed_items]
+        tokenized_corpus = [tokens for _chunk, tokens in indexed_items]
         bm25 = BM25Okapi(tokenized_corpus)
         
-        chunk_scores = {chunk.id: 0.0 for chunk in allowed_chunks}
+        chunk_scores = {chunk.id: 0.0 for chunk in indexed_chunks}
         
         for q in expanded_queries:
-            tokenized_query = kiwi_tokenize(q)
+            tokenized_query = self._lexical_tokens(q)
             if not tokenized_query: continue
+            query_token_set = set(tokenized_query)
             scores = bm25.get_scores(tokenized_query)
-            for chunk, score in zip(allowed_chunks, scores):
-                chunk_scores[chunk.id] = max(chunk_scores[chunk.id], score)
+            for chunk, corpus_tokens, score in zip(indexed_chunks, tokenized_corpus, scores):
+                overlap = len(query_token_set & set(corpus_tokens))
+                overlap_score = overlap / max(len(query_token_set), 1) if overlap > 0 else 0.0
+                chunk_scores[chunk.id] = max(chunk_scores[chunk.id], float(score), overlap_score)
 
         ranked = []
         max_score = max(chunk_scores.values()) if chunk_scores else 0
-        for chunk in allowed_chunks:
+        for chunk in indexed_chunks:
             score = chunk_scores[chunk.id]
             if score > 0:
                 normalized_score = score / max_score if max_score > 0 else 0
                 ranked.append((chunk, normalized_score))
 
         ranked.sort(key=lambda item: item[1], reverse=True)
-        return ranked[: max(settings.rag_answer_top_k, settings.rag_retrieval_k)]
+        return ranked[: (limit or max(settings.rag_answer_top_k, settings.rag_retrieval_k))]
 
     def _rank_pages(
         self,
@@ -513,17 +570,34 @@ class RagService:
         if not allowed_pages_text:
             return []
 
-        tokenized_corpus = [kiwi_tokenize(text) for text in allowed_pages_text]
+        tokenized_items = [
+            (index, self._lexical_tokens(text))
+            for index, text in enumerate(allowed_pages_text)
+        ]
+        indexed_items = [
+            (index, tokens)
+            for index, tokens in tokenized_items
+            if tokens
+        ]
+        if not indexed_items:
+            logger.info("BM25 page retrieval skipped: no lexical tokens in scoped pages.")
+            return []
+
+        indexed_page_indexes = [index for index, _tokens in indexed_items]
+        tokenized_corpus = [tokens for _index, tokens in indexed_items]
         bm25 = BM25Okapi(tokenized_corpus)
         
-        page_scores = {i: 0.0 for i in range(len(allowed_pages_text))}
+        page_scores = {index: 0.0 for index in indexed_page_indexes}
         
         for q in expanded_queries:
-            tokenized_query = kiwi_tokenize(q)
+            tokenized_query = self._lexical_tokens(q)
             if not tokenized_query: continue
+            query_token_set = set(tokenized_query)
             scores = bm25.get_scores(tokenized_query)
-            for i, score in enumerate(scores):
-                page_scores[i] = max(page_scores[i], score)
+            for page_index, corpus_tokens, score in zip(indexed_page_indexes, tokenized_corpus, scores):
+                overlap = len(query_token_set & set(corpus_tokens))
+                overlap_score = overlap / max(len(query_token_set), 1) if overlap > 0 else 0.0
+                page_scores[page_index] = max(page_scores[page_index], float(score), overlap_score)
 
         hits: list[PageHit] = []
         max_score = max(page_scores.values()) if page_scores else 0
@@ -628,6 +702,24 @@ class RagService:
         )
 
         return [(chunk, score) for chunk, score, _sources in ranked[:limit]]
+
+    @staticmethod
+    def _merge_same_channel_hits(
+        primary_hits: list[tuple[ChunkRecord, float]],
+        fallback_hits: list[tuple[ChunkRecord, float]],
+        limit: int,
+    ) -> list[tuple[ChunkRecord, float]]:
+        merged: dict[str, tuple[ChunkRecord, float]] = {}
+
+        for chunk, score in primary_hits:
+            merged[chunk.id] = (chunk, score)
+
+        for chunk, score in fallback_hits:
+            existing = merged.get(chunk.id)
+            if existing is None or score > existing[1]:
+                merged[chunk.id] = (chunk, score)
+
+        return sorted(merged.values(), key=lambda item: item[1], reverse=True)[:limit]
 
     def _merge_page_hits(
         self,
@@ -1276,6 +1368,19 @@ class RagService:
     def _tokenize(text: str) -> list[str]:
         return [token.lower() for token in TOKEN_RE.findall(text) if len(token.strip()) > 1]
 
+    @classmethod
+    def _lexical_tokens(cls, text: str) -> list[str]:
+        terms: set[str] = set()
+        for token in kiwi_tokenize(text):
+            compact_token = cls._compact_text(token)
+            if len(compact_token) > 1:
+                terms.add(compact_token)
+
+        terms.update(cls._search_terms(text))
+        terms.update(cls._search_ngrams(text))
+
+        return sorted(terms)
+
     @staticmethod
     def _compact_text(text: str) -> str:
         return ALNUM_HANGUL_RE.sub("", text).lower()
@@ -1470,7 +1575,7 @@ class RagService:
         scoped_documents: list[DocumentRecord],
     ) -> dict:
         expanded_queries = self._generate_queries(question)
-        hits = self._retrieve(question, scoped_documents)
+        hits = self._retrieve(question, scoped_documents, expanded_queries=expanded_queries)
 
         return {
             "question": question,

@@ -163,15 +163,13 @@ def _extract_alignment_paragraphs(
     extracted_paragraphs = native_paragraphs
     if ocr_triggered:
         ocr_result = _extract_ocr_paragraphs(page, document_id, page_number)
-        if pymupdf_text_chars >= settings.ocr_min_text_chars:
-            extracted_paragraphs = native_paragraphs
-        else:
-            extracted_paragraphs = _merge_short_paragraphs(
-                _merge_paragraph_sources(
-                    native_paragraphs,
-                    ocr_result.row_paragraphs,
-                )
+        extracted_paragraphs = _merge_short_paragraphs(
+            _merge_paragraph_sources(
+                native_paragraphs,
+                ocr_result.row_paragraphs,
+                ocr_result.raw_block_paragraphs,
             )
+        )
 
     aligned = _assign_section_titles(extracted_paragraphs)
     logger.info(

@@ -1,0 +1,77 @@
+[
+  {
+    "id": "cover_letter_role",
+    "question": "채용직무는 뭐야?",
+    "qtype": "general",
+    "expected_pages": [
+      1
+    ],
+    "expected_keywords": [
+      "AI 서비스 개발"
+    ],
+    "retrieved_pages": [
+      1,
+      2,
+      2
+    ],
+    "retrieved_chunks": [
+      "be65e8b548a94fae86feae9087ba9196-p1-c1",
+      "be65e8b548a94fae86feae9087ba9196-p2-c2",
+      "be65e8b548a94fae86feae9087ba9196-p2-c1"
+    ],
+    "answer": "채용직무는 **AI 서비스 개발**입니다.",
+    "source_pages": [
+      1
+    ],
+    "source_chunks": [
+      "be65e8b548a94fae86feae9087ba9196-p1-c1"
+    ],
+    "recall_top3": true,
+    "recall_top5": true,
+    "answer_keyword_hit": true,
+    "source_page_hit": true,
+    "source_keyword_hit": true,
+    "highlight_rects_present": null,
+    "elapsed_ms": 16725,
+    "status": "ok",
+    "error": ""
+  },
+  {
+    "id": "cover_letter_requirement",
+    "question": "자격요건에는 어떤 개발 경험이 있어?",
+    "qtype": "general",
+    "expected_pages": [
+      1
+    ],
+    "expected_keywords": [
+      "Python",
+      "Java"
+    ],
+    "retrieved_pages": [
+      1,
+      2,
+      3
+    ],
+    "retrieved_chunks": [
+      "be65e8b548a94fae86feae9087ba9196-p1-c1",
+      "be65e8b548a94fae86feae9087ba9196-p2-c1",
+      "be65e8b548a94fae86feae9087ba9196-p3-c1"
+    ],
+    "answer": "자격요건에 나온 개발 경험은 다음과 같습니다. \n- Python / Java 개발 경험\n- LLM 등 생성형 AI 활용 경험\n- LangChain 등 AI 개발 프레임워크 기반 서비스 개발/운영 경험(우대사항)\n- AI 서비스 관련 프로젝트 참여 경험(우대사항)\n\n문맥상 이 직무는 AI 서비스 개발과 관련된 프로젝트/서비스 개발 경험을 요구합니다.",
+    "source_pages": [
+      1
+    ],
+    "source_chunks": [
+      "be65e8b548a94fae86feae9087ba9196-p1-c1"
+    ],
+    "recall_top3": true,
+    "recall_top5": true,
+    "answer_keyword_hit": true,
+    "source_page_hit": true,
+    "source_keyword_hit": true,
+    "highlight_rects_present": null,
+    "elapsed_ms": 17052,
+    "status": "ok",
+    "error": ""
+  }
+]

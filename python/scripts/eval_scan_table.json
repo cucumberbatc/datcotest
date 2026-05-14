@@ -1,0 +1,18 @@
+{
+  "cases": [
+    {
+      "id": "scan_table_50w",
+      "question": "\uc2a4\uce94\ubcf8 \ud45c\uc5d0\uc11c 50W\uc758 \ubaa8\ub4c8 \uac1c\uc218\uc640 \uad11\uc18d\uc740?",
+      "expected_pages": [1],
+      "expected_keywords": ["50W", "2", "5700"],
+      "qtype": "ocr_table"
+    },
+    {
+      "id": "scan_table_150w",
+      "question": "\uc2a4\uce94\ubcf8 \ud45c\uc5d0\uc11c 150W\uc758 \uad6c\ub3d9 \uc804\ub958\uc640 \uad11\uc18d\uc740?",
+      "expected_pages": [1],
+      "expected_keywords": ["150W", "700", "17100"],
+      "qtype": "ocr_table"
+    }
+  ]
+}

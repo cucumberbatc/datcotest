@@ -6,8 +6,11 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
 
+from langchain_core.documents import Document
+
 from app.rag_service import RagService
 from app.schemas import LlmAnswerPayload, SourceResponse
+from app.rag_service import PageSelection
 from app.store import ChunkRecord, DocumentRecord, PageRecord, store
 
 
@@ -290,6 +293,121 @@ class RagServiceAnswerFlowTests(unittest.TestCase):
         self.assertEqual("chunk-1", payload["hits"][0]["chunkId"])
         self.assertEqual("Specs", payload["hits"][0]["sectionTitle"])
         self.assertIn("textPreview", payload["hits"][0])
+
+    def test_lexical_retrieve_skips_empty_token_corpus(self) -> None:
+        service = RagService()
+        service._settings = lambda: SimpleNamespace(rag_answer_top_k=3, rag_retrieval_k=6)
+        chunk = _make_chunk(text="!!! ... ///")
+        document = _make_document(chunk)
+        document.pages = [PageRecord(page_number=1, paragraphs=["!!! ... ///"])]
+
+        self.assertEqual([], service._lexical_retrieve(["소비전력에 따른 모듈개수좀"], [document]))
+        self.assertEqual([], service._lexical_page_retrieve(["소비전력에 따른 모듈개수좀"], [document]))
+
+    def test_lexical_retrieve_matches_compound_korean_terms(self) -> None:
+        service = RagService()
+        service._settings = lambda: SimpleNamespace(rag_answer_top_k=3, rag_retrieval_k=6)
+        matching_chunk = _make_chunk(
+            chunk_id="chunk-match",
+            text="소비 전력 400W 기준 모듈 개수는 8개입니다.",
+        )
+        other_chunk = _make_chunk(
+            chunk_id="chunk-other-1",
+            text="방수 등급은 IP67이며 실내용 제품입니다.",
+        )
+        third_chunk = _make_chunk(
+            chunk_id="chunk-other-2",
+            text="색온도는 6500K이고 광속 정보가 포함됩니다.",
+        )
+        document = _make_document(matching_chunk)
+        document.chunks = [matching_chunk, other_chunk, third_chunk]
+        document.pages = [
+            PageRecord(
+                page_number=1,
+                paragraphs=[
+                    "소비 전력 400W 기준 모듈 개수는 8개입니다.",
+                    "방수 등급은 IP67이며 실내용 제품입니다.",
+                    "색온도는 6500K이고 광속 정보가 포함됩니다.",
+                ],
+            )
+        ]
+
+        hits = service._lexical_retrieve(["소비전력에 따른 모듈개수좀"], [document])
+
+        self.assertTrue(hits)
+        self.assertEqual("chunk-match", hits[0][0].id)
+
+    def test_retrieve_keeps_global_vector_candidates_outside_page_filter(self) -> None:
+        service = RagService()
+        service._settings = lambda: SimpleNamespace(
+            rag_debug=False,
+            rag_page_candidate_k=1,
+            rag_retrieval_k=2,
+            rag_answer_top_k=1,
+        )
+        wrong_chunk = _make_chunk(
+            chunk_id="chunk-wrong",
+            text="서비스 기획 배경과 시장 현황",
+        )
+        right_chunk = _make_chunk(
+            chunk_id="chunk-right",
+            text="팀장 김진하 Back-end 강채은 AI 서민석 임민경 김예지 박지혁 장현욱",
+        )
+        right_chunk.page_number = 4
+        right_chunk.paragraph_index = 1
+        right_chunk.paragraph_end_index = 3
+        document = _make_document(wrong_chunk)
+        document.page_count = 4
+        document.chunks = [wrong_chunk, right_chunk]
+        document.pages = [
+            PageRecord(page_number=1, paragraphs=["서비스 기획 배경"]),
+            PageRecord(page_number=4, paragraphs=["팀장 김진하", "Back-end 강채은", "AI 서민석 임민경 김예지 박지혁 장현욱"]),
+        ]
+        store.chunk_lookup[wrong_chunk.id] = wrong_chunk
+        store.chunk_lookup[right_chunk.id] = right_chunk
+        store.vector_store = object()
+        service._generate_queries = Mock(return_value=["참여자 누구야?"])
+        service._select_relevant_pages = Mock(
+            return_value=PageSelection(
+                page_candidates=[],
+                selected_pages={(document.id, 1)},
+                expanded_pages={(document.id, 1)},
+                page_score_lookup={},
+                filtering_enabled=True,
+            )
+        )
+        service._lexical_retrieve = Mock(return_value=[])
+        service._search_raw_vector_hits = Mock(
+            return_value=[
+                (
+                    Document(
+                        page_content=wrong_chunk.text,
+                        metadata={
+                            "document_id": wrong_chunk.document_id,
+                            "chunk_id": wrong_chunk.id,
+                            "page_number": wrong_chunk.page_number,
+                        },
+                    ),
+                    1.0,
+                ),
+                (
+                    Document(
+                        page_content=right_chunk.text,
+                        metadata={
+                            "document_id": right_chunk.document_id,
+                            "chunk_id": right_chunk.id,
+                            "page_number": right_chunk.page_number,
+                        },
+                    ),
+                    1.2,
+                ),
+            ]
+        )
+        service._get_reranker = Mock(return_value=Mock(predict=Mock(return_value=[0.1, 0.9])))
+
+        hits = service._retrieve("참여자 누구야?", [document])
+
+        self.assertEqual([(right_chunk, 0.9)], hits)
 
 
 if __name__ == "__main__":

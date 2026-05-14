@@ -20,7 +20,7 @@ rank-bm25 = "*"
 sentence-transformers = "*"
 torch = "*"
 llama-cloud = "*"
-
+paddlepaddle = "==3.2.2"
 
 [dev-packages]
 

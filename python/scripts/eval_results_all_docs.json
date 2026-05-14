@@ -1,0 +1,555 @@
+[
+  {
+    "id": "ds_cover_product_name",
+    "question": "제품명 뭐야?",
+    "qtype": "spec",
+    "expected_pages": [
+      1
+    ],
+    "expected_keywords": [
+      "B2G 투광등 모듈",
+      "T-type Gen2.5"
+    ],
+    "retrieved_pages": [],
+    "retrieved_chunks": [],
+    "answer": "",
+    "source_pages": [],
+    "source_chunks": [],
+    "recall_top3": false,
+    "recall_top5": false,
+    "answer_keyword_hit": false,
+    "source_page_hit": false,
+    "source_keyword_hit": false,
+    "highlight_rects_present": null,
+    "elapsed_ms": null,
+    "status": "error",
+    "debug_elapsed_ms": null,
+    "ask_elapsed_ms": null,
+    "error": "HTTPError('400 Client Error: Bad Request for url: http://localhost:8000/api/chat/ask')"
+  },
+  {
+    "id": "ds_cover_product_code",
+    "question": "제품 코드는 뭐야?",
+    "qtype": "spec",
+    "expected_pages": [
+      1
+    ],
+    "expected_keywords": [
+      "SL-P8R2W6451WW"
+    ],
+    "retrieved_pages": [],
+    "retrieved_chunks": [],
+    "answer": "",
+    "source_pages": [],
+    "source_chunks": [],
+    "recall_top3": false,
+    "recall_top5": false,
+    "answer_keyword_hit": false,
+    "source_page_hit": false,
+    "source_keyword_hit": false,
+    "highlight_rects_present": null,
+    "elapsed_ms": null,
+    "status": "error",
+    "debug_elapsed_ms": null,
+    "ask_elapsed_ms": null,
+    "error": "HTTPError('400 Client Error: Bad Request for url: http://localhost:8000/api/chat/ask')"
+  },
+  {
+    "id": "ds_cover_color_temp",
+    "question": "색온도는?",
+    "qtype": "spec",
+    "expected_pages": [
+      1,
+      7
+    ],
+    "expected_keywords": [
+      "5000K"
+    ],
+    "retrieved_pages": [],
+    "retrieved_chunks": [],
+    "answer": "",
+    "source_pages": [],
+    "source_chunks": [],
+    "recall_top3": false,
+    "recall_top5": false,
+    "answer_keyword_hit": false,
+    "source_page_hit": false,
+    "source_keyword_hit": false,
+    "highlight_rects_present": null,
+    "elapsed_ms": null,
+    "status": "error",
+    "debug_elapsed_ms": null,
+    "ask_elapsed_ms": null,
+    "error": "HTTPError('400 Client Error: Bad Request for url: http://localhost:8000/api/chat/ask')"
+  },
+  {
+    "id": "ds_applications",
+    "question": "이 LED 모듈은 어떤 조명에 적합해?",
+    "qtype": "general",
+    "expected_pages": [
+      4
+    ],
+    "expected_keywords": [
+      "가로등",
+      "보안등",
+      "터널 조명"
+    ],
+    "retrieved_pages": [],
+    "retrieved_chunks": [],
+    "answer": "",
+    "source_pages": [],
+    "source_chunks": [],
+    "recall_top3": false,
+    "recall_top5": false,
+    "answer_keyword_hit": false,
+    "source_page_hit": false,
+    "source_keyword_hit": false,
+    "highlight_rects_present": null,
+    "elapsed_ms": null,
+    "status": "error",
+    "debug_elapsed_ms": null,
+    "ask_elapsed_ms": null,
+    "error": "HTTPError('400 Client Error: Bad Request for url: http://localhost:8000/api/chat/ask')"
+  },
+  {
+    "id": "ds_engine_50w_module_count",
+    "question": "50W 엔진은 모듈이 몇 개야?",
+    "qtype": "table",
+    "expected_pages": [
+      4
+    ],
+    "expected_keywords": [
+      "50W",
+      "2"
+    ],
+    "retrieved_pages": [],
+    "retrieved_chunks": [],
+    "answer": "",
+    "source_pages": [],
+    "source_chunks": [],
+    "recall_top3": false,
+    "recall_top5": false,
+    "answer_keyword_hit": false,
+    "source_page_hit": false,
+    "source_keyword_hit": false,
+    "highlight_rects_present": null,
+    "elapsed_ms": null,
+    "status": "error",
+    "debug_elapsed_ms": null,
+    "ask_elapsed_ms": null,
+    "error": "HTTPError('400 Client Error: Bad Request for url: http://localhost:8000/api/chat/ask')"
+  },
+  {
+    "id": "ds_engine_200w_luminous_flux",
+    "question": "200W 엔진의 광속은 얼마야?",
+    "qtype": "table",
+    "expected_pages": [
+      4
+    ],
+    "expected_keywords": [
+      "200W",
+      "22800"
+    ],
+    "retrieved_pages": [],
+    "retrieved_chunks": [],
+    "answer": "",
+    "source_pages": [],
+    "source_chunks": [],
+    "recall_top3": false,
+    "recall_top5": false,
+    "answer_keyword_hit": false,
+    "source_page_hit": false,
+    "source_keyword_hit": false,
+    "highlight_rects_present": null,
+    "elapsed_ms": null,
+    "status": "error",
+    "debug_elapsed_ms": null,
+    "ask_elapsed_ms": null,
+    "error": "HTTPError('400 Client Error: Bad Request for url: http://localhost:8000/api/chat/ask')"
+  },
+  {
+    "id": "ds_basic_led_model",
+    "question": "LED 모델은 뭐야?",
+    "qtype": "table",
+    "expected_pages": [
+      6
+    ],
+    "expected_keywords": [
+      "Samsung High Power LED"
+    ],
+    "retrieved_pages": [],
+    "retrieved_chunks": [],
+    "answer": "",
+    "source_pages": [],
+    "source_chunks": [],
+    "recall_top3": false,
+    "recall_top5": false,
+    "answer_keyword_hit": false,
+    "source_page_hit": false,
+    "source_keyword_hit": false,
+    "highlight_rects_present": null,
+    "elapsed_ms": null,
+    "status": "error",
+    "debug_elapsed_ms": null,
+    "ask_elapsed_ms": null,
+    "error": "HTTPError('400 Client Error: Bad Request for url: http://localhost:8000/api/chat/ask')"
+  },
+  {
+    "id": "ds_basic_weight",
+    "question": "무게는 얼마야?",
+    "qtype": "table",
+    "expected_pages": [
+      6
+    ],
+    "expected_keywords": [
+      "295.0",
+      "20"
+    ],
+    "retrieved_pages": [],
+    "retrieved_chunks": [],
+    "answer": "",
+    "source_pages": [],
+    "source_chunks": [],
+    "recall_top3": false,
+    "recall_top5": false,
+    "answer_keyword_hit": false,
+    "source_page_hit": false,
+    "source_keyword_hit": false,
+    "highlight_rects_present": null,
+    "elapsed_ms": null,
+    "status": "error",
+    "debug_elapsed_ms": null,
+    "ask_elapsed_ms": null,
+    "error": "HTTPError('400 Client Error: Bad Request for url: http://localhost:8000/api/chat/ask')"
+  },
+  {
+    "id": "ds_basic_dc_current",
+    "question": "구동 DC 전류는?",
+    "qtype": "table",
+    "expected_pages": [
+      6
+    ],
+    "expected_keywords": [
+      "700mA"
+    ],
+    "retrieved_pages": [],
+    "retrieved_chunks": [],
+    "answer": "",
+    "source_pages": [],
+    "source_chunks": [],
+    "recall_top3": false,
+    "recall_top5": false,
+    "answer_keyword_hit": false,
+    "source_page_hit": false,
+    "source_keyword_hit": false,
+    "highlight_rects_present": null,
+    "elapsed_ms": null,
+    "status": "error",
+    "debug_elapsed_ms": null,
+    "ask_elapsed_ms": null,
+    "error": "HTTPError('400 Client Error: Bad Request for url: http://localhost:8000/api/chat/ask')"
+  },
+  {
+    "id": "ds_basic_ip_rating",
+    "question": "방수방진 등급은?",
+    "qtype": "table",
+    "expected_pages": [
+      6
+    ],
+    "expected_keywords": [
+      "IP67"
+    ],
+    "retrieved_pages": [],
+    "retrieved_chunks": [],
+    "answer": "",
+    "source_pages": [],
+    "source_chunks": [],
+    "recall_top3": false,
+    "recall_top5": false,
+    "answer_keyword_hit": false,
+    "source_page_hit": false,
+    "source_keyword_hit": false,
+    "highlight_rects_present": null,
+    "elapsed_ms": null,
+    "status": "error",
+    "debug_elapsed_ms": null,
+    "ask_elapsed_ms": null,
+    "error": "HTTPError('400 Client Error: Bad Request for url: http://localhost:8000/api/chat/ask')"
+  },
+  {
+    "id": "ds_electrical_drive_voltage",
+    "question": "구동 전압의 TYP 값은?",
+    "qtype": "table",
+    "expected_pages": [
+      7
+    ],
+    "expected_keywords": [
+      "29.0"
+    ],
+    "retrieved_pages": [],
+    "retrieved_chunks": [],
+    "answer": "",
+    "source_pages": [],
+    "source_chunks": [],
+    "recall_top3": false,
+    "recall_top5": false,
+    "answer_keyword_hit": false,
+    "source_page_hit": false,
+    "source_keyword_hit": false,
+    "highlight_rects_present": null,
+    "elapsed_ms": null,
+    "status": "error",
+    "debug_elapsed_ms": null,
+    "ask_elapsed_ms": null,
+    "error": "HTTPError('400 Client Error: Bad Request for url: http://localhost:8000/api/chat/ask')"
+  },
+  {
+    "id": "ds_electrical_max_current",
+    "question": "구동 전류의 MAX 값은?",
+    "qtype": "table",
+    "expected_pages": [
+      7
+    ],
+    "expected_keywords": [
+      "1200"
+    ],
+    "retrieved_pages": [],
+    "retrieved_chunks": [],
+    "answer": "",
+    "source_pages": [],
+    "source_chunks": [],
+    "recall_top3": false,
+    "recall_top5": false,
+    "answer_keyword_hit": false,
+    "source_page_hit": false,
+    "source_keyword_hit": false,
+    "highlight_rects_present": null,
+    "elapsed_ms": null,
+    "status": "error",
+    "debug_elapsed_ms": null,
+    "ask_elapsed_ms": null,
+    "error": "HTTPError('400 Client Error: Bad Request for url: http://localhost:8000/api/chat/ask')"
+  },
+  {
+    "id": "ds_optical_flux_typ",
+    "question": "광속의 TYP 값은?",
+    "qtype": "table",
+    "expected_pages": [
+      7
+    ],
+    "expected_keywords": [
+      "2900"
+    ],
+    "retrieved_pages": [],
+    "retrieved_chunks": [],
+    "answer": "",
+    "source_pages": [],
+    "source_chunks": [],
+    "recall_top3": false,
+    "recall_top5": false,
+    "answer_keyword_hit": false,
+    "source_page_hit": false,
+    "source_keyword_hit": false,
+    "highlight_rects_present": null,
+    "elapsed_ms": null,
+    "status": "error",
+    "debug_elapsed_ms": null,
+    "ask_elapsed_ms": null,
+    "error": "HTTPError('400 Client Error: Bad Request for url: http://localhost:8000/api/chat/ask')"
+  },
+  {
+    "id": "ds_pack_quantity_box",
+    "question": "BOX의 포장 수량은?",
+    "qtype": "table",
+    "expected_pages": [
+      11
+    ],
+    "expected_keywords": [
+      "12 ea"
+    ],
+    "retrieved_pages": [],
+    "retrieved_chunks": [],
+    "answer": "",
+    "source_pages": [],
+    "source_chunks": [],
+    "recall_top3": false,
+    "recall_top5": false,
+    "answer_keyword_hit": false,
+    "source_page_hit": false,
+    "source_keyword_hit": false,
+    "highlight_rects_present": null,
+    "elapsed_ms": null,
+    "status": "error",
+    "debug_elapsed_ms": null,
+    "ask_elapsed_ms": null,
+    "error": "HTTPError('400 Client Error: Bad Request for url: http://localhost:8000/api/chat/ask')"
+  },
+  {
+    "id": "ds_psu_100w",
+    "question": "100W 엔진의 권장 PSU 모델은?",
+    "qtype": "table",
+    "expected_pages": [
+      15
+    ],
+    "expected_keywords": [
+      "SL-LA142A001KR"
+    ],
+    "retrieved_pages": [],
+    "retrieved_chunks": [],
+    "answer": "",
+    "source_pages": [],
+    "source_chunks": [],
+    "recall_top3": false,
+    "recall_top5": false,
+    "answer_keyword_hit": false,
+    "source_page_hit": false,
+    "source_keyword_hit": false,
+    "highlight_rects_present": null,
+    "elapsed_ms": null,
+    "status": "error",
+    "debug_elapsed_ms": null,
+    "ask_elapsed_ms": null,
+    "error": "HTTPError('400 Client Error: Bad Request for url: http://localhost:8000/api/chat/ask')"
+  },
+  {
+    "id": "scan_table_50w",
+    "question": "스캔본 표에서 50W의 모듈 개수와 광속은?",
+    "qtype": "ocr_table",
+    "expected_pages": [
+      1
+    ],
+    "expected_keywords": [
+      "50W",
+      "2",
+      "5700"
+    ],
+    "retrieved_pages": [],
+    "retrieved_chunks": [],
+    "answer": "",
+    "source_pages": [],
+    "source_chunks": [],
+    "recall_top3": false,
+    "recall_top5": false,
+    "answer_keyword_hit": false,
+    "source_page_hit": false,
+    "source_keyword_hit": false,
+    "highlight_rects_present": null,
+    "elapsed_ms": null,
+    "status": "error",
+    "debug_elapsed_ms": null,
+    "ask_elapsed_ms": null,
+    "error": "HTTPError('400 Client Error: Bad Request for url: http://localhost:8000/api/chat/ask')"
+  },
+  {
+    "id": "scan_table_150w",
+    "question": "스캔본 표에서 150W의 구동 전류와 광속은?",
+    "qtype": "ocr_table",
+    "expected_pages": [
+      1
+    ],
+    "expected_keywords": [
+      "150W",
+      "700",
+      "17100"
+    ],
+    "retrieved_pages": [],
+    "retrieved_chunks": [],
+    "answer": "",
+    "source_pages": [],
+    "source_chunks": [],
+    "recall_top3": false,
+    "recall_top5": false,
+    "answer_keyword_hit": false,
+    "source_page_hit": false,
+    "source_keyword_hit": false,
+    "highlight_rects_present": null,
+    "elapsed_ms": null,
+    "status": "error",
+    "debug_elapsed_ms": null,
+    "ask_elapsed_ms": null,
+    "error": "HTTPError('400 Client Error: Bad Request for url: http://localhost:8000/api/chat/ask')"
+  },
+  {
+    "id": "cover_letter_role",
+    "question": "채용직무는 뭐야?",
+    "qtype": "general",
+    "expected_pages": [
+      1
+    ],
+    "expected_keywords": [
+      "AI 서비스 개발"
+    ],
+    "retrieved_pages": [],
+    "retrieved_chunks": [],
+    "answer": "",
+    "source_pages": [],
+    "source_chunks": [],
+    "recall_top3": false,
+    "recall_top5": false,
+    "answer_keyword_hit": false,
+    "source_page_hit": false,
+    "source_keyword_hit": false,
+    "highlight_rects_present": null,
+    "elapsed_ms": null,
+    "status": "error",
+    "debug_elapsed_ms": null,
+    "ask_elapsed_ms": null,
+    "error": "HTTPError('400 Client Error: Bad Request for url: http://localhost:8000/api/chat/ask')"
+  },
+  {
+    "id": "cover_letter_requirement",
+    "question": "자격요건에는 어떤 개발 경험이 있어?",
+    "qtype": "general",
+    "expected_pages": [
+      1
+    ],
+    "expected_keywords": [
+      "Python",
+      "Java"
+    ],
+    "retrieved_pages": [],
+    "retrieved_chunks": [],
+    "answer": "",
+    "source_pages": [],
+    "source_chunks": [],
+    "recall_top3": false,
+    "recall_top5": false,
+    "answer_keyword_hit": false,
+    "source_page_hit": false,
+    "source_keyword_hit": false,
+    "highlight_rects_present": null,
+    "elapsed_ms": null,
+    "status": "error",
+    "debug_elapsed_ms": null,
+    "ask_elapsed_ms": null,
+    "error": "HTTPError('400 Client Error: Bad Request for url: http://localhost:8000/api/chat/ask')"
+  },
+  {
+    "id": "proposal_budget_material",
+    "question": "예산표에서 재료비 금액은 얼마야?",
+    "qtype": "ocr_table",
+    "expected_pages": [
+      7
+    ],
+    "expected_keywords": [
+      "재료비",
+      "170,000"
+    ],
+    "retrieved_pages": [],
+    "retrieved_chunks": [],
+    "answer": "",
+    "source_pages": [],
+    "source_chunks": [],
+    "recall_top3": false,
+    "recall_top5": false,
+    "answer_keyword_hit": false,
+    "source_page_hit": false,
+    "source_keyword_hit": false,
+    "highlight_rects_present": null,
+    "elapsed_ms": null,
+    "status": "error",
+    "debug_elapsed_ms": null,
+    "ask_elapsed_ms": null,
+    "error": "HTTPError('400 Client Error: Bad Request for url: http://localhost:8000/api/chat/ask')"
+  }
+]

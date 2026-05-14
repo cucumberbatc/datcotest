@@ -1,0 +1,40 @@
+[
+  {
+    "id": "proposal_budget_material",
+    "question": "예산표에서 재료비 금액은 얼마야?",
+    "qtype": "ocr_table",
+    "expected_pages": [
+      7
+    ],
+    "expected_keywords": [
+      "재료비",
+      "170,000"
+    ],
+    "retrieved_pages": [
+      11,
+      8,
+      2
+    ],
+    "retrieved_chunks": [
+      "7f5120207ac64b4c952ca50d2e24a12d-p11-c1",
+      "7f5120207ac64b4c952ca50d2e24a12d-p8-c1",
+      "7f5120207ac64b4c952ca50d2e24a12d-p2-c1"
+    ],
+    "answer": "예산표에서 재료비 금액은 170,000원입니다.",
+    "source_pages": [
+      11
+    ],
+    "source_chunks": [
+      "7f5120207ac64b4c952ca50d2e24a12d-p11-c1"
+    ],
+    "recall_top3": false,
+    "recall_top5": false,
+    "answer_keyword_hit": true,
+    "source_page_hit": false,
+    "source_keyword_hit": true,
+    "highlight_rects_present": null,
+    "elapsed_ms": 32861,
+    "status": "ok",
+    "error": ""
+  }
+]
