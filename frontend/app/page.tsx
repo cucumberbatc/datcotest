@@ -659,8 +659,9 @@ export default function HomePage() {
   }
 
   async function readErrorMessage(response: Response) {
+    const detail = await response.text();
     try {
-      const payload = (await response.json()) as { detail?: string };
+      const payload = JSON.parse(detail) as { detail?: string };
       if (payload?.detail) {
         return payload.detail;
       }
@@ -668,7 +669,7 @@ export default function HomePage() {
       // fall back to text
     }
 
-    const detail = await response.text();
+    // Response bodies can only be read once.
     return detail || "요청 처리 중 오류가 발생했습니다.";
   }
 

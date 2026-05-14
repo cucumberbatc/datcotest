@@ -31,8 +31,10 @@ This folder contains the Python service for real RAG and PDF highlighting.
 cd python
 pipenv install
 copy .env.example .env
-pipenv run uvicorn app.main:app --reload --port 8000
+pipenv run uvicorn app.main:app --port 8000
 ```
+
+Use the non-reload command for upload, OCR, embedding, and performance tests. `--reload` can restart the server while a request is in flight.
 
 ## PaddleOCR CPU install
 
@@ -129,7 +131,7 @@ If you want to open a shell first:
 ```bash
 cd python
 pipenv shell
-uvicorn app.main:app --reload --port 8000
+uvicorn app.main:app --port 8000
 ```
 
 ## Frontend connection
