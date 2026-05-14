@@ -8,11 +8,15 @@ from unittest.mock import patch
 from fastapi import HTTPException
 
 from app.main import (
+    MAX_TOTAL_UPLOAD_BYTES,
+    MAX_UPLOAD_DOCUMENTS,
     get_highlighted_file,
     get_page_image,
     get_page_metadata,
     open_document_file,
     select_highlight_rects,
+    _validate_pdf_upload,
+    _validate_upload_limits,
 )
 from app.store import ChunkRecord, DocumentRecord, PageRecord
 
@@ -56,6 +60,45 @@ class MainRouteFileChecksTests(unittest.TestCase):
 
         self.assertEqual(404, context.exception.status_code)
         self.assertEqual("File not found on disk.", context.exception.detail)
+
+
+class UploadValidationTests(unittest.TestCase):
+    def test_validate_pdf_upload_rejects_non_pdf_extension(self) -> None:
+        with self.assertRaises(HTTPException) as context:
+            _validate_pdf_upload("sample.txt", b"%PDF-1.7")
+
+        self.assertEqual(400, context.exception.status_code)
+        self.assertIn("PDF 파일만", context.exception.detail)
+
+    def test_validate_pdf_upload_rejects_empty_file(self) -> None:
+        with self.assertRaises(HTTPException) as context:
+            _validate_pdf_upload("sample.pdf", b"")
+
+        self.assertEqual(400, context.exception.status_code)
+        self.assertIn("빈 파일", context.exception.detail)
+
+    def test_validate_pdf_upload_rejects_invalid_pdf_signature(self) -> None:
+        with self.assertRaises(HTTPException) as context:
+            _validate_pdf_upload("sample.pdf", b"not a pdf")
+
+        self.assertEqual(400, context.exception.status_code)
+        self.assertIn("손상된 파일", context.exception.detail)
+
+    def test_validate_upload_limits_rejects_too_many_documents(self) -> None:
+        with patch("app.main.store.list_documents", return_value=[]):
+            with self.assertRaises(HTTPException) as context:
+                _validate_upload_limits(MAX_UPLOAD_DOCUMENTS + 1, 100)
+
+        self.assertEqual(400, context.exception.status_code)
+        self.assertIn("최대 10개", context.exception.detail)
+
+    def test_validate_upload_limits_rejects_total_size_over_200mb(self) -> None:
+        with patch("app.main.store.list_documents", return_value=[]):
+            with self.assertRaises(HTTPException) as context:
+                _validate_upload_limits(1, MAX_TOTAL_UPLOAD_BYTES + 1)
+
+        self.assertEqual(413, context.exception.status_code)
+        self.assertIn("총 200.0MB", context.exception.detail)
 
     def test_get_page_metadata_raises_404_when_source_file_is_missing(self) -> None:
         document = _make_document(Path("missing-source.pdf"))

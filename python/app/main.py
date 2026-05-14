@@ -35,6 +35,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 MAX_PAGE_LIKE_RECT_AREA_RATIO = 0.85
 MAX_PAGE_LIKE_RECT_DIMENSION_RATIO = 0.95
+MAX_UPLOAD_DOCUMENTS = 10
+MAX_TOTAL_UPLOAD_BYTES = 200 * 1024 * 1024
+PDF_SIGNATURE_SCAN_BYTES = 1024
 
 app = FastAPI(title=settings.app_name)
 app.add_middleware(
@@ -97,6 +100,53 @@ def get_document_or_404(document_id: str) -> DocumentRecord:
     return document
 
 
+def _format_mb(size_bytes: int) -> str:
+    return f"{size_bytes / (1024 * 1024):.1f}MB"
+
+
+def _validate_pdf_upload(file_name: str, content: bytes) -> None:
+    if not file_name.lower().endswith(".pdf"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"PDF 파일만 업로드할 수 있어요: {file_name}",
+        )
+    if not content:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"빈 파일은 업로드할 수 없어요: {file_name}",
+        )
+    if not content[:PDF_SIGNATURE_SCAN_BYTES].lstrip().startswith(b"%PDF"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"문서를 읽을 수 없습니다. PDF 형식이 아니거나 손상된 파일일 수 있어요: {file_name}",
+        )
+
+
+def _validate_upload_limits(incoming_count: int, incoming_bytes: int) -> None:
+    documents = store.list_documents()
+    existing_count = len(documents)
+    existing_bytes = sum(document.size_bytes for document in documents)
+
+    if incoming_count == 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="업로드할 PDF 파일을 선택해 주세요.",
+        )
+    if existing_count + incoming_count > MAX_UPLOAD_DOCUMENTS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"최대 {MAX_UPLOAD_DOCUMENTS}개의 문서까지 업로드할 수 있어요.",
+        )
+    if existing_bytes + incoming_bytes > MAX_TOTAL_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+            detail=(
+                f"총 {_format_mb(MAX_TOTAL_UPLOAD_BYTES)}까지 업로드할 수 있어요. "
+                f"현재 {_format_mb(existing_bytes)}, 추가 {_format_mb(incoming_bytes)}입니다."
+            ),
+        )
+
+
 @app.get("/health")
 def healthcheck() -> dict[str, str]:
     return {"status": "ok"}
@@ -110,25 +160,58 @@ def list_documents() -> list[DocumentSummaryResponse]:
 @app.post(f"{settings.api_prefix}/documents", response_model=UploadResponse)
 async def upload_documents(files: list[UploadFile] = File(...)) -> UploadResponse:
     uploaded: list[DocumentSummaryResponse] = []
+    uploaded_documents: list[DocumentRecord] = []
 
     with acquire_document_processing():
+        uploads: list[tuple[str, bytes]] = []
         for file in files:
             if not file.filename:
                 continue
-            if not file.filename.lower().endswith(".pdf"):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Only PDF uploads are supported: {file.filename}",
-                )
 
             content = await file.read()
-            safe_name = sanitize_filename(file.filename)
+            _validate_pdf_upload(file.filename, content)
+            uploads.append((file.filename, content))
+
+        _validate_upload_limits(
+            incoming_count=len(uploads),
+            incoming_bytes=sum(len(content) for _, content in uploads),
+        )
+
+        for file_name, content in uploads:
+            safe_name = sanitize_filename(file_name)
             output_path = settings.uploads_root / f"{uuid.uuid4().hex}-{safe_name}"
-            document = ingest_pdf(file.filename, content, output_path)
+            try:
+                document = ingest_pdf(file_name, content, output_path)
+            except HTTPException:
+                output_path.unlink(missing_ok=True)
+                raise
+            except Exception as exc:  # pragma: no cover - defensive boundary
+                output_path.unlink(missing_ok=True)
+                logger.exception("Document ingest failed for %s", file_name)
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="문서 분석 중 오류가 발생했어요. 다른 PDF로 다시 시도해 주세요.",
+                ) from exc
             store.upsert_document(document)
+            uploaded_documents.append(document)
             uploaded.append(to_summary(document))
 
-        rag_service.rebuild_index()
+        try:
+            rag_service.rebuild_index()
+        except HTTPException:
+            for document in uploaded_documents:
+                store.remove_document(document.id)
+                document.file_path.unlink(missing_ok=True)
+            raise
+        except Exception as exc:  # pragma: no cover - defensive boundary
+            for document in uploaded_documents:
+                store.remove_document(document.id)
+                document.file_path.unlink(missing_ok=True)
+            logger.exception("Document indexing failed after upload")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="문서 인덱싱 중 오류가 발생했어요. 잠시 후 다시 시도해 주세요.",
+            ) from exc
     return UploadResponse(documents=uploaded)
 
 

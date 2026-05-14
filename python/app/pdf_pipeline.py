@@ -877,6 +877,12 @@ def ingest_pdf(file_name: str, file_bytes: bytes, output_path: Path) -> Document
         ) from exc
 
     with pdf:
+        if pdf.needs_pass:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="암호가 걸린 PDF는 업로드할 수 없어요. 암호를 해제한 뒤 다시 업로드해 주세요.",
+            )
+
         for page_index in range(pdf.page_count):
             page = pdf.load_page(page_index)
             page_number = page_index + 1

@@ -142,9 +142,12 @@ function formatBytes(bytes: number) {
 
 function parseErrorDetail(detail: string) {
   try {
-    const payload = JSON.parse(detail) as { detail?: string };
-    if (payload?.detail) {
+    const payload = JSON.parse(detail) as { detail?: unknown };
+    if (typeof payload?.detail === "string") {
       return payload.detail;
+    }
+    if (payload?.detail) {
+      return JSON.stringify(payload.detail);
     }
   } catch {
     // fall back to text
@@ -718,9 +721,12 @@ export default function HomePage() {
   async function readErrorMessage(response: Response) {
     const detail = await response.text();
     try {
-      const payload = JSON.parse(detail) as { detail?: string };
-      if (payload?.detail) {
+      const payload = JSON.parse(detail) as { detail?: unknown };
+      if (typeof payload?.detail === "string") {
         return payload.detail;
+      }
+      if (payload?.detail) {
+        return JSON.stringify(payload.detail);
       }
     } catch {
       // fall back to text

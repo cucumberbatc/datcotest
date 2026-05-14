@@ -1,9 +1,14 @@
 import unittest
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+from fastapi import HTTPException
 
 from app.pdf_pipeline import (
     OCR_TABLE_PREFIX,
     ExtractedParagraph,
     OcrTextItem,
+    ingest_pdf,
     _merge_short_paragraphs,
     _ocr_items_to_table_paragraphs,
 )
@@ -55,6 +60,21 @@ class OcrTableParagraphTests(unittest.TestCase):
 
         self.assertEqual(table.text, paragraphs[0].text)
         self.assertEqual("short", paragraphs[1].text)
+
+
+class PdfIngestValidationTests(unittest.TestCase):
+    def test_ingest_pdf_rejects_password_protected_pdf(self) -> None:
+        pdf = MagicMock()
+        pdf.needs_pass = True
+        pdf.__enter__.return_value = pdf
+        pdf.__exit__.return_value = None
+
+        with patch("app.pdf_pipeline.fitz.open", return_value=pdf):
+            with self.assertRaises(HTTPException) as context:
+                ingest_pdf("locked.pdf", b"%PDF-1.7", Path("locked.pdf"))
+
+        self.assertEqual(400, context.exception.status_code)
+        self.assertIn("암호가 걸린 PDF", context.exception.detail)
 
 
 if __name__ == "__main__":
