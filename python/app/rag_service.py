@@ -25,7 +25,7 @@ ALNUM_HANGUL_RE = re.compile(r"[^0-9A-Za-z\uAC00-\uD7A3]+")
 BRACKET_LABEL_RE = re.compile(r"^\[[^\]]+\]")
 logger = logging.getLogger("rag.retrieval")
 SOURCE_EXCERPT_CHARS = 2200
-LLM_SOURCE_CONTEXT_CHARS = 3000
+LLM_SOURCE_CONTEXT_CHARS = 2000
 KOREAN_PARTICLE_SUFFIXES = (
     "이라고",
     "라고",
@@ -233,7 +233,8 @@ class RagService:
 
     def _generate_queries(self, question: str) -> list[str]:
         settings = self._settings()
-        if not settings.openai_api_key:
+        expansion_k = max(getattr(settings, "rag_query_expansion_k", 2), 0)
+        if not settings.openai_api_key or expansion_k == 0:
             return [question]
         
         prompt = ChatPromptTemplate.from_messages([
@@ -252,7 +253,6 @@ class RagService:
             queries = [q.strip("- ") for q in response.content.split("\n") if q.strip()]
             if not queries:
                 return [question]
-            expansion_k = max(getattr(settings, "rag_query_expansion_k", 2), 0)
             return [question] + queries[:expansion_k]
         except Exception as e:
             logger.error("Query expansion failed: %s", e)
@@ -389,19 +389,21 @@ class RagService:
 
         # 4. Cross-Encoder Re-ranking
         if merged:
-            reranker = self._get_reranker()
-            rerank_top_k = min(max(getattr(settings, "rag_rerank_top_k", 8), answer_top_k), len(merged))
-            rerank_candidates = merged[:rerank_top_k]
-            pairs = [[question, chunk.text] for chunk, score in rerank_candidates]
-            rerank_scores = reranker.predict(pairs)
-            
-            reranked = []
-            for i, score in enumerate(rerank_scores):
-                reranked.append((rerank_candidates[i][0], float(score)))
+            configured_rerank_top_k = getattr(settings, "rag_rerank_top_k", 8)
+            if configured_rerank_top_k > 0:
+                reranker = self._get_reranker()
+                rerank_top_k = min(max(configured_rerank_top_k, answer_top_k), len(merged))
+                rerank_candidates = merged[:rerank_top_k]
+                pairs = [[question, chunk.text] for chunk, score in rerank_candidates]
+                rerank_scores = reranker.predict(pairs)
                 
-            reranked.sort(key=lambda item: item[1], reverse=True)
-            merged = reranked + merged[rerank_top_k:]
-            self._log_retrieval_hits("RERANKED HITS", question, merged)
+                reranked = []
+                for i, score in enumerate(rerank_scores):
+                    reranked.append((rerank_candidates[i][0], float(score)))
+                    
+                reranked.sort(key=lambda item: item[1], reverse=True)
+                merged = reranked + merged[rerank_top_k:]
+                self._log_retrieval_hits("RERANKED HITS", question, merged)
 
         final_hits = merged[:answer_top_k]
         self._log_retrieval_hits("FINAL CONTEXT HITS", question, final_hits)

@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     rag_retrieval_k: int = 6
     rag_answer_top_k: int = 3
     rag_candidate_pool_k: int = 12
-    rag_rerank_top_k: int = 8
+    rag_rerank_top_k: int = 7
     rag_query_expansion_k: int = 2
     rag_min_score: float = 0.0
     rag_strong_evidence_score: float = 0.65
