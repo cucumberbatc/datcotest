@@ -104,6 +104,7 @@ type AssistantMessage = {
 };
 
 type ChatMessage = UserMessage | AssistantMessage;
+type UploadPhase = "idle" | "uploading" | "processing";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000/api";
 const API_ORIGIN = API_BASE.replace(/\/api$/, "");
@@ -121,11 +122,35 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
+function formatSourceLocation(source: Source) {
+  const paragraphStart = Math.max(1, source.paragraphIndex);
+  const paragraphEnd = Math.max(paragraphStart, source.paragraphEndIndex);
+  const paragraphLabel =
+    paragraphStart === paragraphEnd
+      ? `${paragraphStart}번째 문단`
+      : `${paragraphStart}번째-${paragraphEnd}번째 문단`;
+
+  return `${source.pageNumber}페이지 · ${paragraphLabel} · 1번째 문장`;
+}
+
 function formatBytes(bytes: number) {
   if (bytes < 1024 * 1024) {
     return `${(bytes / 1024).toFixed(1)} KB`;
   }
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function parseErrorDetail(detail: string) {
+  try {
+    const payload = JSON.parse(detail) as { detail?: string };
+    if (payload?.detail) {
+      return payload.detail;
+    }
+  } catch {
+    // fall back to text
+  }
+
+  return detail || "Request failed.";
 }
 
 function formatUploadDate(isoDate: string) {
@@ -397,6 +422,8 @@ export default function HomePage() {
   const [scope, setScope] = useState<"all" | "selected">("all");
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadPhase, setUploadPhase] = useState<UploadPhase>("idle");
   const [activeCitation, setActiveCitation] = useState<number | null>(null);
   const [selectedSource, setSelectedSource] = useState<Source | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -598,6 +625,38 @@ export default function HomePage() {
     return detail;
   }
 
+  function uploadDocuments(formData: FormData) {
+    return new Promise<void>((resolve, reject) => {
+      const request = new XMLHttpRequest();
+      request.open("POST", `${API_BASE}/documents`);
+
+      request.upload.onprogress = (event) => {
+        if (!event.lengthComputable) {
+          return;
+        }
+        const nextProgress = Math.min(99, Math.round((event.loaded / event.total) * 100));
+        setUploadProgress(nextProgress);
+      };
+
+      request.upload.onload = () => {
+        setUploadProgress(100);
+        setUploadPhase("processing");
+      };
+
+      request.onload = () => {
+        if (request.status >= 200 && request.status < 300) {
+          resolve();
+          return;
+        }
+        reject(new Error(parseErrorDetail(request.responseText)));
+      };
+
+      request.onerror = () => reject(new Error("Upload request failed."));
+      request.onabort = () => reject(new Error("Upload was canceled."));
+      request.send(formData);
+    });
+  }
+
   async function handleUpload(files: FileList | null) {
     if (uploading) {
       setToast("업로드가 진행 중입니다. 현재 문서 처리가 끝난 뒤 다시 시도해 주세요.");
@@ -612,14 +671,10 @@ export default function HomePage() {
     Array.from(files).forEach((file) => formData.append("files", file));
 
     setUploading(true);
+    setUploadProgress(0);
+    setUploadPhase("uploading");
     try {
-      const response = await fetch(`${API_BASE}/documents`, {
-        method: "POST",
-        body: formData
-      });
-      if (!response.ok) {
-        throw new Error(await readErrorMessage(response));
-      }
+      await uploadDocuments(formData);
 
       setToast(`${files.length}개 PDF 업로드 및 인덱싱이 완료되었습니다.`);
       await loadDocuments();
@@ -627,6 +682,8 @@ export default function HomePage() {
       setToast(error instanceof Error ? error.message : "업로드 중 오류가 발생했습니다.");
     } finally {
       setUploading(false);
+      setUploadProgress(0);
+      setUploadPhase("idle");
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
@@ -853,7 +910,7 @@ export default function HomePage() {
 
       <header className="topbar">
         <div className="brand">
-          <div className="brand-mark">A</div>
+          <div className="brand-mark">D</div>
           <div>
             <div className="brand-name">DocQ</div>
 
@@ -894,8 +951,26 @@ export default function HomePage() {
             void handleUpload(event.dataTransfer.files);
           }}
         >
-          <div className="upload-zone-title">여기에 PDF 끌어 놓기</div>
-          <div className="upload-zone-sub">또는 클릭해서 선택 · 최대 200MB</div>
+          <div className="upload-zone-row">
+            <div>
+              <div className="upload-zone-title">
+                {uploading ? (uploadPhase === "processing" ? "문서 처리 중" : "업로드 중") : "여기에 PDF 끌어 놓기"}
+              </div>
+              <div className="upload-zone-sub">
+                {uploading
+                  ? uploadPhase === "processing"
+                    ? "OCR, 문서 분석, 인덱싱을 진행하고 있어요"
+                    : `${uploadProgress}% 전송 중`
+                  : "또는 클릭해서 선택 · 최대 200MB"}
+              </div>
+            </div>
+            {uploading && uploadPhase === "uploading" ? <span className="upload-percent">{uploadProgress}%</span> : null}
+          </div>
+          {uploading ? (
+            <div className="upload-progress" data-state={uploadPhase} aria-label="업로드 진행률">
+              <div style={uploadPhase === "uploading" ? { width: `${uploadProgress}%` } : undefined} />
+            </div>
+          ) : null}
         </div>
 
         <div className="doc-list">
@@ -914,7 +989,6 @@ export default function HomePage() {
               role="button"
               tabIndex={0}
             >
-              <div className="doc-icon">PDF</div>
               <div className="doc-body">
                 <div className="doc-name">{document.fileName}</div>
                 <div className="doc-meta-line">
@@ -1025,7 +1099,7 @@ export default function HomePage() {
                 </div>
               ) : (
                 <div key={message.id} className="message-row">
-                  <div className="message-avatar">A</div>
+                  <div className="message-avatar">D</div>
                   <div className="message-content">
                     {message.streaming ? (
                       <div className="answer-text streaming">
@@ -1077,7 +1151,7 @@ export default function HomePage() {
                               <div className="source-card-head">
                                 <span className="doc-icon small">PDF</span>
                                 <strong>{activeSource.fileName}</strong>
-                                <span className="pill">{activeSource.locationLabel}</span>
+                                <span className="pill">{formatSourceLocation(activeSource)}</span>
                               </div>
                               <p>{activeSource.excerpt}</p>
                               <div className="source-card-foot">
@@ -1128,9 +1202,6 @@ export default function HomePage() {
               }}
             />
             <div style={{ display: "flex", gap: "8px" }}>
-              <button className="send-btn" disabled={busy || !composer.trim()} onClick={() => void debugRetrieve()} title="검색 결과 디버깅" type="button">
-                {busy ? "..." : "🔍"}
-              </button>
               <button className="send-btn" disabled={busy || !composer.trim()} onClick={() => void askQuestion()} type="button">
                 {busy ? <SpinnerIcon /> : <SendIcon />}
               </button>

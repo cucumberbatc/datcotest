@@ -333,8 +333,15 @@ a {
 }
 
 .upload-zone[data-disabled="true"] {
-  opacity: 0.56;
+  opacity: 0.78;
   cursor: not-allowed;
+}
+
+.upload-zone-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .upload-zone-title {
@@ -348,6 +355,34 @@ a {
   font-size: 12px;
 }
 
+.upload-percent {
+  flex: 0 0 auto;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.upload-progress {
+  height: 6px;
+  margin-top: 12px;
+  border-radius: 999px;
+  background: rgba(23, 103, 255, 0.1);
+  overflow: hidden;
+}
+
+.upload-progress > div {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent), #5a92ff);
+  transition: width 140ms ease;
+}
+
+.upload-progress[data-state="processing"] > div {
+  width: 42%;
+  animation: upload-processing 1.1s ease-in-out infinite;
+}
+
 .doc-list {
   flex: 1;
   overflow: auto;
@@ -357,10 +392,10 @@ a {
 .doc-row {
   width: 100%;
   display: grid;
-  grid-template-columns: 36px minmax(0, 1fr) 32px;
-  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) 32px;
+  gap: 12px;
   align-items: center;
-  padding: 10px;
+  padding: 12px 10px 12px 12px;
   margin-bottom: 6px;
   border: 1px solid transparent;
   border-radius: 14px;
@@ -427,6 +462,8 @@ a {
   align-items: center;
   gap: 6px;
   margin-top: 2px;
+  min-width: 0;
+  white-space: nowrap;
 }
 
 .dot {
@@ -853,7 +890,7 @@ a {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 10px;
-  align-items: end;
+  align-items: center;
   padding: 10px;
   border-radius: 18px;
   border: 1px solid var(--hairline);
@@ -863,13 +900,15 @@ a {
 
 .composer textarea {
   width: 100%;
-  min-height: 24px;
+  min-height: 42px;
   max-height: 140px;
+  padding: 10px 2px;
   resize: none;
   border: 0;
   outline: none;
   background: transparent;
   color: var(--ink-2);
+  line-height: 22px;
 }
 
 .send-btn {
@@ -1129,6 +1168,16 @@ a {
 @keyframes spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+@keyframes upload-processing {
+  0% {
+    transform: translateX(-110%);
+  }
+
+  100% {
+    transform: translateX(240%);
   }
 }
 
