@@ -13,29 +13,31 @@
     ],
     "retrieved_pages": [
       1,
-      1
-    ],
-    "retrieved_chunks": [
-      "9cf7121638154fd69c4de646e9549266-p1-c2",
-      "9cf7121638154fd69c4de646e9549266-p1-c1"
-    ],
-    "answer": "50W의 모듈 개수는 2개이고, 광속은 5700입니다.",
-    "source_pages": [
       1,
       1
     ],
+    "retrieved_chunks": [
+      "5f04f58d295a43a1ad8b96e2c41d9e3a-p1-c3",
+      "5f04f58d295a43a1ad8b96e2c41d9e3a-p1-c1",
+      "5f04f58d295a43a1ad8b96e2c41d9e3a-p1-c2"
+    ],
+    "answer": "50W의 모듈 개수는 2개이고, 광속은 5700입니다.",
+    "source_pages": [
+      1
+    ],
     "source_chunks": [
-      "9cf7121638154fd69c4de646e9549266-p1-c2",
-      "9cf7121638154fd69c4de646e9549266-p1-c1"
+      "5f04f58d295a43a1ad8b96e2c41d9e3a-p1-c3"
     ],
     "recall_top3": true,
     "recall_top5": true,
     "answer_keyword_hit": true,
     "source_page_hit": true,
     "source_keyword_hit": true,
-    "highlight_rects_present": null,
-    "elapsed_ms": 26709,
+    "highlight_rects_present": true,
+    "elapsed_ms": 13358,
     "status": "ok",
+    "debug_elapsed_ms": 6159,
+    "ask_elapsed_ms": 7198,
     "error": ""
   },
   {
@@ -52,29 +54,31 @@
     ],
     "retrieved_pages": [
       1,
-      1
-    ],
-    "retrieved_chunks": [
-      "9cf7121638154fd69c4de646e9549266-p1-c2",
-      "9cf7121638154fd69c4de646e9549266-p1-c1"
-    ],
-    "answer": "스캔본 표에서 150W의 구동 전류는 700mA, 광속은 17100입니다.",
-    "source_pages": [
       1,
       1
     ],
+    "retrieved_chunks": [
+      "5f04f58d295a43a1ad8b96e2c41d9e3a-p1-c1",
+      "5f04f58d295a43a1ad8b96e2c41d9e3a-p1-c3",
+      "5f04f58d295a43a1ad8b96e2c41d9e3a-p1-c2"
+    ],
+    "answer": "스캔본 표에서 150W의 구동 전류는 700mA이고, 광속은 17100입니다.",
+    "source_pages": [
+      1
+    ],
     "source_chunks": [
-      "9cf7121638154fd69c4de646e9549266-p1-c2",
-      "9cf7121638154fd69c4de646e9549266-p1-c1"
+      "5f04f58d295a43a1ad8b96e2c41d9e3a-p1-c1"
     ],
     "recall_top3": true,
     "recall_top5": true,
     "answer_keyword_hit": true,
     "source_page_hit": true,
     "source_keyword_hit": true,
-    "highlight_rects_present": null,
-    "elapsed_ms": 14173,
+    "highlight_rects_present": true,
+    "elapsed_ms": 13569,
     "status": "ok",
+    "debug_elapsed_ms": 6414,
+    "ask_elapsed_ms": 7155,
     "error": ""
   }
 ]

@@ -95,6 +95,52 @@ class RagServiceAnswerFlowTests(unittest.TestCase):
         self.assertIn("IP67 waterproof rated.", context)
         self.assertNotEqual(context, source.excerpt)
 
+    def test_source_context_for_llm_limits_full_ocr_table_chunks(self) -> None:
+        service = RagService()
+        long_tail = " ".join(f"tail-{index}" for index in range(500))
+        chunk = _make_chunk(
+            text=(
+                "Section: OCR extracted text\n\n"
+                "[OCR Table]\n"
+                "Part | Temp | Package\n"
+                "LM124N | -55 to +125 | DIP\n"
+                "LM224D | -25 to +85 | SO\n"
+                f"{long_tail}"
+            ),
+            section_title="OCR extracted text",
+        )
+        store.chunk_lookup[chunk.id] = chunk
+        source = _make_source(
+            score=0.91,
+            excerpt="LM124N | -55 to +125 | DIP",
+            chunk_id=chunk.id,
+        )
+
+        context = service._source_context_for_llm(source)
+
+        self.assertIn("LM124N | -55 to +125 | DIP", context)
+        self.assertLessEqual(len(context), 1610)
+        self.assertTrue(context.endswith("..."))
+
+    def test_rerank_text_for_chunk_limits_ocr_table_only(self) -> None:
+        service = RagService()
+        settings = SimpleNamespace(rag_table_rerank_context_chars=80)
+        table_chunk = _make_chunk(
+            text="[OCR Table]\nPart | Value\nLM124N | -55 to +125\n" + ("tail " * 100),
+            section_title="OCR extracted text",
+        )
+        normal_chunk = _make_chunk(
+            text="Regular paragraph " + ("tail " * 100),
+            section_title="Specs",
+        )
+
+        table_text = service._rerank_text_for_chunk(table_chunk, settings)
+        normal_text = service._rerank_text_for_chunk(normal_chunk, settings)
+
+        self.assertLess(len(table_text), len(table_chunk.text))
+        self.assertTrue(table_text.endswith("..."))
+        self.assertEqual(normal_chunk.text, normal_text)
+
     def test_strong_retrieval_overrides_llm_no_evidence(self) -> None:
         service = RagService()
         settings = SimpleNamespace(

@@ -26,6 +26,7 @@ CHUNK_OVERLAP_CHARS = 150
 MIN_PARAGRAPH_CHARS = 40
 DEBUG_EXTRACTED_TEXT = True
 OCR_SOURCE_TITLE = "OCR extracted text"
+OCR_TABLE_PREFIX = "[OCR Table]"
 LARGE_IMAGE_AREA_RATIO = 0.08
 logger = logging.getLogger(__name__)
 
@@ -46,6 +47,22 @@ class TextLine:
     @property
     def y1(self) -> float:
         return self.bbox[3]
+
+    @property
+    def x1(self) -> float:
+        return self.bbox[2]
+
+    @property
+    def center_x(self) -> float:
+        return (self.x0 + self.x1) / 2
+
+    @property
+    def center_y(self) -> float:
+        return (self.y0 + self.y1) / 2
+
+    @property
+    def width(self) -> float:
+        return max(self.x1 - self.x0, 1.0)
 
     @property
     def height(self) -> float:
@@ -76,6 +93,7 @@ class OcrParseResult:
 @dataclass(slots=True)
 class OcrPageResult:
     items: list[OcrTextItem]
+    table_paragraphs: list[ExtractedParagraph]
     row_paragraphs: list[ExtractedParagraph]
     raw_block_paragraphs: list[ExtractedParagraph]
     raw_payloads: list[Any]
@@ -533,10 +551,7 @@ def _ocr_items_to_raw_block_paragraphs(items: list[OcrTextItem], zoom: float) ->
     return paragraphs
 
 
-def _ocr_items_to_paragraphs(items: list[OcrTextItem], zoom: float) -> list[ExtractedParagraph]:
-    if not items:
-        return []
-
+def _ocr_items_to_lines(items: list[OcrTextItem], zoom: float) -> list[TextLine]:
     lines = [
         TextLine(
             text=item.text,
@@ -550,7 +565,10 @@ def _ocr_items_to_paragraphs(items: list[OcrTextItem], zoom: float) -> list[Extr
         for item in items
     ]
     lines.sort(key=lambda line: (line.y0, line.x0))
+    return lines
 
+
+def _cluster_ocr_rows(lines: list[TextLine]) -> list[list[TextLine]]:
     rows: list[list[TextLine]] = []
     for line in lines:
         if not rows:
@@ -558,15 +576,22 @@ def _ocr_items_to_paragraphs(items: list[OcrTextItem], zoom: float) -> list[Extr
             continue
 
         previous_row = rows[-1]
-        previous_center = sum((item.y0 + item.y1) / 2 for item in previous_row) / len(previous_row)
-        line_center = (line.y0 + line.y1) / 2
+        previous_center = sum(item.center_y for item in previous_row) / len(previous_row)
         row_height = max(max(item.height for item in previous_row), line.height)
 
-        if abs(line_center - previous_center) <= row_height * 0.65:
+        if abs(line.center_y - previous_center) <= row_height * 0.65:
             previous_row.append(line)
         else:
             rows.append([line])
 
+    return rows
+
+
+def _ocr_items_to_paragraphs(items: list[OcrTextItem], zoom: float) -> list[ExtractedParagraph]:
+    if not items:
+        return []
+
+    rows = _cluster_ocr_rows(_ocr_items_to_lines(items, zoom))
     paragraphs: list[ExtractedParagraph] = []
     for row in rows:
         row.sort(key=lambda line: line.x0)
@@ -575,6 +600,93 @@ def _ocr_items_to_paragraphs(items: list[OcrTextItem], zoom: float) -> list[Extr
             paragraphs.append(ExtractedParagraph(text=text, rects=[line.bbox for line in row], section_title=OCR_SOURCE_TITLE))
 
     return paragraphs
+
+
+def _median(values: list[float]) -> float:
+    if not values:
+        return 0.0
+
+    ordered = sorted(values)
+    middle = len(ordered) // 2
+    if len(ordered) % 2:
+        return ordered[middle]
+    return (ordered[middle - 1] + ordered[middle]) / 2
+
+
+def _column_anchors(rows: list[list[TextLine]]) -> list[float]:
+    multi_cell_rows = [row for row in rows if len(row) >= 2]
+    if len(multi_cell_rows) < 2:
+        return []
+
+    line_heights = [line.height for row in multi_cell_rows for line in row]
+    tolerance = max(_median(line_heights) * 1.8, 18.0)
+    anchors: list[list[float]] = []
+
+    for line in sorted((line for row in multi_cell_rows for line in row), key=lambda item: item.x0):
+        if not anchors:
+            anchors.append([line.x0])
+            continue
+
+        current = anchors[-1]
+        current_anchor = sum(current) / len(current)
+        if abs(line.x0 - current_anchor) <= tolerance:
+            current.append(line.x0)
+        else:
+            anchors.append([line.x0])
+
+    return [sum(anchor) / len(anchor) for anchor in anchors]
+
+
+def _nearest_column_index(line: TextLine, anchors: list[float]) -> int:
+    return min(range(len(anchors)), key=lambda index: abs(line.x0 - anchors[index]))
+
+
+def _ocr_items_to_table_paragraphs(items: list[OcrTextItem], zoom: float) -> list[ExtractedParagraph]:
+    if not items:
+        return []
+
+    rows = _cluster_ocr_rows(_ocr_items_to_lines(items, zoom))
+    for row in rows:
+        row.sort(key=lambda line: line.x0)
+
+    anchors = _column_anchors(rows)
+    if len(anchors) < 2 or len(anchors) > 12:
+        return []
+
+    table_rows: list[list[str]] = []
+    table_rects: list[tuple[float, float, float, float]] = []
+    multi_cell_row_count = 0
+
+    for row in rows:
+        cells = [""] * len(anchors)
+        for line in row:
+            column_index = _nearest_column_index(line, anchors)
+            cells[column_index] = normalize_text(f"{cells[column_index]} {line.text}")
+
+        filled_count = sum(1 for cell in cells if cell)
+        if filled_count >= 2:
+            multi_cell_row_count += 1
+        if filled_count:
+            table_rows.append(cells)
+            table_rects.extend(line.bbox for line in row)
+
+    if multi_cell_row_count < 2:
+        return []
+
+    table_text = "\n".join(
+        normalize_text(" | ".join(cell if cell else "" for cell in row).rstrip())
+        for row in table_rows
+    )
+    if not table_text:
+        return []
+
+    return [
+        ExtractedParagraph(
+            text=f"{OCR_TABLE_PREFIX}\n{table_text}",
+            rects=table_rects,
+            section_title=OCR_SOURCE_TITLE,
+        )
+    ]
 
 
 def _extract_ocr_paragraphs(
@@ -586,6 +698,7 @@ def _extract_ocr_paragraphs(
     if not settings.ocr_enabled:
         return OcrPageResult(
             items=[],
+            table_paragraphs=[],
             row_paragraphs=[],
             raw_block_paragraphs=[],
             raw_payloads=[],
@@ -596,6 +709,7 @@ def _extract_ocr_paragraphs(
     filtered_items = _filter_ocr_items(parsed.items)
     return OcrPageResult(
         items=filtered_items,
+        table_paragraphs=_ocr_items_to_table_paragraphs(filtered_items, settings.ocr_zoom),
         row_paragraphs=_ocr_items_to_paragraphs(filtered_items, settings.ocr_zoom),
         raw_block_paragraphs=_ocr_items_to_raw_block_paragraphs(filtered_items, settings.ocr_zoom),
         raw_payloads=parsed.raw_payloads,
@@ -776,6 +890,7 @@ def ingest_pdf(file_name: str, file_bytes: bytes, output_path: Path) -> Document
 
             ocr_result = OcrPageResult(
                 items=[],
+                table_paragraphs=[],
                 row_paragraphs=[],
                 raw_block_paragraphs=[],
                 raw_payloads=[],
@@ -787,6 +902,7 @@ def ingest_pdf(file_name: str, file_bytes: bytes, output_path: Path) -> Document
                 extracted_paragraphs = _merge_short_paragraphs(
                     _merge_paragraph_sources(
                         native_paragraphs,
+                        ocr_result.table_paragraphs,
                         ocr_result.row_paragraphs,
                         ocr_result.raw_block_paragraphs,
                     )
@@ -794,7 +910,7 @@ def ingest_pdf(file_name: str, file_bytes: bytes, output_path: Path) -> Document
 
             extracted_paragraphs = _assign_section_titles(extracted_paragraphs)
             ocr_text_chars = _paragraph_char_count(
-                ocr_result.row_paragraphs
+                _merge_paragraph_sources(ocr_result.table_paragraphs, ocr_result.row_paragraphs)
             )
             logger.info(
                 "page=%s pymupdf_text_chars=%s has_large_image=%s ocr_triggered=%s ocr_result_count=%s ocr_text_chars=%s",
@@ -906,6 +1022,11 @@ def _merge_short_paragraphs(
         if not text:
             continue
 
+        if paragraph.text.startswith(OCR_TABLE_PREFIX):
+            flush()
+            merged.append(paragraph)
+            continue
+
         if _looks_like_section_title(text):
             flush()
             merged.append(
@@ -966,10 +1087,15 @@ def _write_debug_ocr_result(
     json_file = debug_dir / f"{safe_name}_page_{page_number}.json"
     txt_file = debug_dir / f"{safe_name}_page_{page_number}.txt"
 
+    table_texts = [paragraph.text for paragraph in ocr_result.table_paragraphs]
     row_texts = [paragraph.text for paragraph in ocr_result.row_paragraphs]
     raw_block_texts = [paragraph.text for paragraph in ocr_result.raw_block_paragraphs]
     ocr_text_chars = _paragraph_char_count(
-        _merge_paragraph_sources(ocr_result.row_paragraphs, ocr_result.raw_block_paragraphs)
+        _merge_paragraph_sources(
+            ocr_result.table_paragraphs,
+            ocr_result.row_paragraphs,
+            ocr_result.raw_block_paragraphs,
+        )
     )
 
     payload = {
@@ -981,6 +1107,7 @@ def _write_debug_ocr_result(
         "ocrZoom": get_settings().ocr_zoom,
         "ocrResultCount": len(ocr_result.items),
         "ocrTextChars": ocr_text_chars,
+        "tableTexts": table_texts,
         "rowTexts": row_texts,
         "rawBlockTexts": raw_block_texts,
         "items": [
@@ -1000,6 +1127,7 @@ def _write_debug_ocr_result(
 
     txt_sections = [
         f"[meta]\npymupdf_text_chars={pymupdf_text_chars}\nhas_large_image={has_large_image}\nocr_triggered={ocr_triggered}\nocr_result_count={len(ocr_result.items)}\nocr_text_chars={ocr_text_chars}\nocr_confidence_threshold={get_settings().ocr_confidence_threshold}\nocr_zoom={get_settings().ocr_zoom}",
+        "[table_texts]\n" + ("\n".join(table_texts) if table_texts else "(none)"),
         "[row_texts]\n" + ("\n".join(row_texts) if row_texts else "(none)"),
         "[raw_block_texts]\n" + ("\n".join(raw_block_texts) if raw_block_texts else "(none)"),
     ]

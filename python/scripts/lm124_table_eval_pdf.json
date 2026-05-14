@@ -1,0 +1,321 @@
+[
+  {
+    "id": "lm_order_lm124n_temp",
+    "question": "LM124N의 온도 범위는?",
+    "qtype": "table_ordering",
+    "expected_pages": [
+      1
+    ],
+    "expected_keywords": [
+      "LM124N",
+      "-55",
+      "+125"
+    ],
+    "retrieved_pages": [
+      1,
+      2,
+      2
+    ],
+    "answer": "LM124N의 온도 범위는 -55°C to +125°C입니다.",
+    "source_pages": [
+      1,
+      2
+    ],
+    "recall_top3": true,
+    "recall_top5": true,
+    "answer_keyword_hit": true,
+    "source_page_hit": true,
+    "source_keyword_hit": true,
+    "debug_elapsed_ms": 15533,
+    "ask_elapsed_ms": 10120,
+    "status": "ok",
+    "error": ""
+  },
+  {
+    "id": "lm_order_lm224d_package",
+    "question": "LM224D의 패키지 설명은?",
+    "qtype": "table_ordering",
+    "expected_pages": [
+      1
+    ],
+    "expected_keywords": [
+      "LM224D",
+      "14-Pin Plastic Small Outline",
+      "SO"
+    ],
+    "retrieved_pages": [
+      1,
+      2,
+      2
+    ],
+    "answer": "LM224D는 14핀 플라스틱 소형 외형(SO) 패키지이며, 도면 번호는 SOT108-1입니다. 동작 온도 범위는 -25°C to +85°C입니다.",
+    "source_pages": [
+      1
+    ],
+    "recall_top3": true,
+    "recall_top5": true,
+    "answer_keyword_hit": true,
+    "source_page_hit": true,
+    "source_keyword_hit": true,
+    "debug_elapsed_ms": 9462,
+    "ask_elapsed_ms": 9786,
+    "status": "ok",
+    "error": ""
+  },
+  {
+    "id": "lm_abs_supply_voltage",
+    "question": "Absolute maximum ratings에서 supply voltage VCC의 rating은?",
+    "qtype": "table_rating",
+    "expected_pages": [
+      2
+    ],
+    "expected_keywords": [
+      "VCC",
+      "32",
+      "±16"
+    ],
+    "retrieved_pages": [
+      2,
+      2,
+      4
+    ],
+    "answer": "Absolute maximum ratings에서 supply voltage VCC의 rating은 32VDC 또는 ±16VDC입니다.",
+    "source_pages": [
+      2,
+      2
+    ],
+    "recall_top3": true,
+    "recall_top5": true,
+    "answer_keyword_hit": true,
+    "source_page_hit": true,
+    "source_keyword_hit": true,
+    "debug_elapsed_ms": 7566,
+    "ask_elapsed_ms": 8499,
+    "status": "ok",
+    "error": ""
+  },
+  {
+    "id": "lm_abs_lm2902_temp",
+    "question": "LM2902의 operating ambient temperature range는?",
+    "qtype": "table_rating",
+    "expected_pages": [
+      2
+    ],
+    "expected_keywords": [
+      "LM2902",
+      "-40",
+      "+125"
+    ],
+    "retrieved_pages": [
+      2,
+      2,
+      4
+    ],
+    "answer": "LM2902의 operating ambient temperature range는 -40 to +125 °C입니다.",
+    "source_pages": [
+      2
+    ],
+    "recall_top3": true,
+    "recall_top5": true,
+    "answer_keyword_hit": true,
+    "source_page_hit": true,
+    "source_keyword_hit": true,
+    "debug_elapsed_ms": 8392,
+    "ask_elapsed_ms": 9139,
+    "status": "ok",
+    "error": ""
+  },
+  {
+    "id": "lm_abs_storage_temp",
+    "question": "Storage temperature range는 얼마야?",
+    "qtype": "table_rating",
+    "expected_pages": [
+      2
+    ],
+    "expected_keywords": [
+      "TSTG",
+      "-65",
+      "+150"
+    ],
+    "retrieved_pages": [
+      2,
+      2,
+      1
+    ],
+    "answer": "Storage temperature range는 -65°C to +150°C입니다.",
+    "source_pages": [
+      2,
+      2
+    ],
+    "recall_top3": true,
+    "recall_top5": true,
+    "answer_keyword_hit": true,
+    "source_page_hit": true,
+    "source_keyword_hit": true,
+    "debug_elapsed_ms": 7848,
+    "ask_elapsed_ms": 9083,
+    "status": "ok",
+    "error": ""
+  },
+  {
+    "id": "lm_dc_offset_voltage_lm324_typ",
+    "question": "DC Electrical Characteristics에서 LM324/SA534/LM2902의 offset voltage typ 값은?",
+    "qtype": "table_electrical",
+    "expected_pages": [
+      3
+    ],
+    "expected_keywords": [
+      "Offset voltage",
+      "±2",
+      "mV"
+    ],
+    "retrieved_pages": [
+      3,
+      4,
+      2
+    ],
+    "answer": "DC Electrical Characteristics에서 LM324/SA534/LM2902의 offset voltage typ 값은 ±3 mV입니다.",
+    "source_pages": [
+      3
+    ],
+    "recall_top3": true,
+    "recall_top5": true,
+    "answer_keyword_hit": true,
+    "source_page_hit": true,
+    "source_keyword_hit": true,
+    "debug_elapsed_ms": 8936,
+    "ask_elapsed_ms": 8778,
+    "status": "ok",
+    "error": ""
+  },
+  {
+    "id": "lm_dc_gbw",
+    "question": "Unity gain bandwidth 값은 얼마야?",
+    "qtype": "table_electrical",
+    "expected_pages": [
+      3,
+      4
+    ],
+    "expected_keywords": [
+      "Unity gain bandwidth",
+      "1",
+      "MHz"
+    ],
+    "retrieved_pages": [
+      3,
+      4,
+      4
+    ],
+    "answer": "Unity gain bandwidth는 1 MHz입니다.",
+    "source_pages": [
+      3,
+      4,
+      4
+    ],
+    "recall_top3": true,
+    "recall_top5": true,
+    "answer_keyword_hit": true,
+    "source_page_hit": true,
+    "source_keyword_hit": true,
+    "debug_elapsed_ms": 7139,
+    "ask_elapsed_ms": 8311,
+    "status": "ok",
+    "error": ""
+  },
+  {
+    "id": "lm_dc_slew_rate",
+    "question": "Slew rate 값은 얼마야?",
+    "qtype": "table_electrical",
+    "expected_pages": [
+      3,
+      4
+    ],
+    "expected_keywords": [
+      "Slew rate",
+      "0.3",
+      "V/µs"
+    ],
+    "retrieved_pages": [
+      3,
+      4,
+      4
+    ],
+    "answer": "Slew rate 값은 0.3 V/µs입니다.",
+    "source_pages": [
+      3,
+      4
+    ],
+    "recall_top3": true,
+    "recall_top5": true,
+    "answer_keyword_hit": true,
+    "source_page_hit": true,
+    "source_keyword_hit": true,
+    "debug_elapsed_ms": 6916,
+    "ask_elapsed_ms": 8639,
+    "status": "ok",
+    "error": ""
+  },
+  {
+    "id": "lm_dc_lm324a_input_current_max",
+    "question": "LM324A에서 input current의 max 값은?",
+    "qtype": "table_electrical",
+    "expected_pages": [
+      4
+    ],
+    "expected_keywords": [
+      "Input current",
+      "100",
+      "nA"
+    ],
+    "retrieved_pages": [
+      4,
+      2,
+      3
+    ],
+    "answer": "LM324A의 input current 최대값은 표에 따르면 100 nA입니다. (조건: IIN(+) 또는 IIN(-), VCC=5V, TA=25°C)",
+    "source_pages": [
+      4
+    ],
+    "recall_top3": true,
+    "recall_top5": true,
+    "answer_keyword_hit": true,
+    "source_page_hit": true,
+    "source_keyword_hit": true,
+    "debug_elapsed_ms": 6982,
+    "ask_elapsed_ms": 8394,
+    "status": "ok",
+    "error": ""
+  },
+  {
+    "id": "lm_features_supply_range",
+    "question": "전원 공급 범위는 어떻게 돼?",
+    "qtype": "spec",
+    "expected_pages": [
+      1
+    ],
+    "expected_keywords": [
+      "3V",
+      "30V",
+      "±1.5",
+      "±15"
+    ],
+    "retrieved_pages": [
+      1,
+      1,
+      7
+    ],
+    "answer": "전원 공급 범위는 단일 전원 기준 3VDC~30VDC이고, 이중 전원 기준으로는 ±1.5VDC~±15VDC입니다.",
+    "source_pages": [
+      1
+    ],
+    "recall_top3": true,
+    "recall_top5": true,
+    "answer_keyword_hit": true,
+    "source_page_hit": true,
+    "source_keyword_hit": false,
+    "debug_elapsed_ms": 7589,
+    "ask_elapsed_ms": 8749,
+    "status": "ok",
+    "error": ""
+  }
+]

@@ -26,6 +26,8 @@ BRACKET_LABEL_RE = re.compile(r"^\[[^\]]+\]")
 logger = logging.getLogger("rag.retrieval")
 SOURCE_EXCERPT_CHARS = 2200
 LLM_SOURCE_CONTEXT_CHARS = 2000
+OCR_TABLE_LLM_CONTEXT_CHARS = 1600
+OCR_TABLE_PREFIX = "[OCR Table]"
 KOREAN_PARTICLE_SUFFIXES = (
     "이라고",
     "라고",
@@ -166,7 +168,14 @@ class RagService:
                 detail="No indexed documents available.",
             )
 
-        retrieved = self._retrieve(question, scoped_documents)
+        retrieval_started_at = perf_counter()
+        retrieval_timings: dict[str, int] = {}
+        retrieved = self._retrieve(question, scoped_documents, timings=retrieval_timings)
+        retrieval_elapsed_ms = int((perf_counter() - retrieval_started_at) * 1000)
+        context_build_elapsed_ms: int | None = None
+        llm_elapsed_ms: int | None = None
+        context_chars: int | None = None
+        context_block_count: int | None = None
         min_score = max(settings.rag_min_score, 0.0)
         if not retrieved or (min_score > 0 and retrieved[0][1] < min_score):
             return AskResponse(
@@ -176,6 +185,17 @@ class RagService:
                 noEvidenceNote=self._no_evidence_note(len(scoped_documents)),
                 sources=[],
                 elapsedMs=int((perf_counter() - started_at) * 1000),
+                retrievalElapsedMs=retrieval_elapsed_ms,
+                queryExpansionElapsedMs=retrieval_timings.get("queryExpansionElapsedMs"),
+                vectorSearchElapsedMs=retrieval_timings.get("vectorSearchElapsedMs"),
+                pageSelectionElapsedMs=retrieval_timings.get("pageSelectionElapsedMs"),
+                lexicalSearchElapsedMs=retrieval_timings.get("lexicalSearchElapsedMs"),
+                retrievalMergeElapsedMs=retrieval_timings.get("retrievalMergeElapsedMs"),
+                rerankElapsedMs=retrieval_timings.get("rerankElapsedMs"),
+                contextBuildElapsedMs=context_build_elapsed_ms,
+                llmElapsedMs=llm_elapsed_ms,
+                contextChars=context_chars,
+                contextBlockCount=context_block_count,
             )
 
         source_candidates = [
@@ -184,8 +204,14 @@ class RagService:
         ]
         context_blocks: list[LlmContextBlock] = []
         if settings.openai_api_key:
+            context_build_started_at = perf_counter()
             context_blocks = self._build_llm_context_blocks(question, source_candidates, scoped_documents)
+            context_build_elapsed_ms = int((perf_counter() - context_build_started_at) * 1000)
+            context_chars = sum(len(block.context_text) for block in context_blocks)
+            context_block_count = len(context_blocks)
+            llm_started_at = perf_counter()
             payload = self._answer_with_llm(question, context_blocks)
+            llm_elapsed_ms = int((perf_counter() - llm_started_at) * 1000)
         else:
             payload = self._fallback_answer(source_candidates)
 
@@ -206,6 +232,17 @@ class RagService:
                     noEvidenceNote=payload.no_evidence_reason or self._no_evidence_note(len(scoped_documents)),
                     sources=[],
                     elapsedMs=int((perf_counter() - started_at) * 1000),
+                    retrievalElapsedMs=retrieval_elapsed_ms,
+                    queryExpansionElapsedMs=retrieval_timings.get("queryExpansionElapsedMs"),
+                    vectorSearchElapsedMs=retrieval_timings.get("vectorSearchElapsedMs"),
+                    pageSelectionElapsedMs=retrieval_timings.get("pageSelectionElapsedMs"),
+                    lexicalSearchElapsedMs=retrieval_timings.get("lexicalSearchElapsedMs"),
+                    retrievalMergeElapsedMs=retrieval_timings.get("retrievalMergeElapsedMs"),
+                    rerankElapsedMs=retrieval_timings.get("rerankElapsedMs"),
+                    contextBuildElapsedMs=context_build_elapsed_ms,
+                    llmElapsedMs=llm_elapsed_ms,
+                    contextChars=context_chars,
+                    contextBlockCount=context_block_count,
                 )
 
         if settings.openai_api_key:
@@ -229,6 +266,17 @@ class RagService:
             noEvidenceNote=None,
             sources=selected_sources,
             elapsedMs=int((perf_counter() - started_at) * 1000),
+            retrievalElapsedMs=retrieval_elapsed_ms,
+            queryExpansionElapsedMs=retrieval_timings.get("queryExpansionElapsedMs"),
+            vectorSearchElapsedMs=retrieval_timings.get("vectorSearchElapsedMs"),
+            pageSelectionElapsedMs=retrieval_timings.get("pageSelectionElapsedMs"),
+            lexicalSearchElapsedMs=retrieval_timings.get("lexicalSearchElapsedMs"),
+            retrievalMergeElapsedMs=retrieval_timings.get("retrievalMergeElapsedMs"),
+            rerankElapsedMs=retrieval_timings.get("rerankElapsedMs"),
+            contextBuildElapsedMs=context_build_elapsed_ms,
+            llmElapsedMs=llm_elapsed_ms,
+            contextChars=context_chars,
+            contextBlockCount=context_block_count,
         )
 
     def _generate_queries(self, question: str) -> list[str]:
@@ -263,13 +311,17 @@ class RagService:
         question: str,
         scoped_documents: list[DocumentRecord],
         expanded_queries: list[str] | None = None,
+        timings: dict[str, int] | None = None,
     ) -> list[tuple[ChunkRecord, float]]:
         settings = self._settings()
         allowed_ids = {document.id for document in scoped_documents}
         vector_store = store.vector_store
 
         # 1. Query Expansion
+        query_expansion_started_at = perf_counter()
         expanded_queries = expanded_queries or self._generate_queries(question)
+        if timings is not None:
+            timings["queryExpansionElapsedMs"] = int((perf_counter() - query_expansion_started_at) * 1000)
         if getattr(settings, "rag_debug", True):
             logger.info("========== EXPANDED QUERIES ==========")
             logger.info("\n".join(expanded_queries))
@@ -281,6 +333,7 @@ class RagService:
         candidate_pool_k = max(configured_candidate_pool_k, retrieval_k, answer_top_k)
         
         # 2. Vector Search (Multi-query)
+        vector_started_at = perf_counter()
         raw_hits = []
         seen_vector_docs = set()
         for q in expanded_queries:
@@ -290,8 +343,10 @@ class RagService:
                 if doc_key not in seen_vector_docs:
                     seen_vector_docs.add(doc_key)
                     raw_hits.append((doc, score))
+        if timings is not None:
+            timings["vectorSearchElapsedMs"] = int((perf_counter() - vector_started_at) * 1000)
 
-
+        page_selection_started_at = perf_counter()
         page_selection = self._select_relevant_pages(
             expanded_queries,
             scoped_documents,
@@ -299,12 +354,15 @@ class RagService:
             page_candidate_k=page_candidate_k,
             answer_top_k=answer_top_k,
         )
+        if timings is not None:
+            timings["pageSelectionElapsedMs"] = int((perf_counter() - page_selection_started_at) * 1000)
         self._log_page_hits("PAGE CANDIDATES", question, page_selection.page_candidates)
 
         allowed_pages = page_selection.expanded_pages if page_selection.filtering_enabled else None
         if not page_selection.filtering_enabled:
             logger.info("No page candidates selected; falling back to global chunk retrieval.")
 
+        lexical_started_at = perf_counter()
         lexical_hits = self._lexical_retrieve(
             expanded_queries,
             scoped_documents,
@@ -323,9 +381,14 @@ class RagService:
                 global_lexical_hits,
                 limit=candidate_pool_k,
             )
+        if timings is not None:
+            timings["lexicalSearchElapsedMs"] = int((perf_counter() - lexical_started_at) * 1000)
         self._log_retrieval_hits("LEXICAL HITS", question, lexical_hits)
 
         if vector_store is None:
+            if timings is not None:
+                timings["retrievalMergeElapsedMs"] = 0
+                timings["rerankElapsedMs"] = 0
             self._log_retrieval_hits("FINAL HITS - LEXICAL ONLY", question, lexical_hits[:answer_top_k])
             return lexical_hits[:answer_top_k]
 
@@ -378,23 +441,39 @@ class RagService:
 
         self._log_retrieval_hits("VECTOR HITS", question, vector_hits)
 
+        merge_started_at = perf_counter()
         merged = self._merge_retrieval_hits(
             vector_hits=vector_hits,
             lexical_hits=lexical_hits,
             limit=candidate_pool_k,
             page_scores=page_selection.page_score_lookup,
         )
+        if timings is not None:
+            timings["retrievalMergeElapsedMs"] = int((perf_counter() - merge_started_at) * 1000)
 
         self._log_retrieval_hits("MERGED HITS", question, merged)
 
         # 4. Cross-Encoder Re-ranking
+        rerank_started_at = perf_counter()
         if merged:
             configured_rerank_top_k = getattr(settings, "rag_rerank_top_k", 8)
+            has_table_candidate = any(
+                self._is_ocr_table_chunk(chunk)
+                for chunk, _score in merged[: max(configured_rerank_top_k, answer_top_k)]
+            )
+            if has_table_candidate:
+                configured_rerank_top_k = max(
+                    getattr(settings, "rag_table_rerank_top_k", configured_rerank_top_k),
+                    0,
+                )
             if configured_rerank_top_k > 0:
                 reranker = self._get_reranker()
                 rerank_top_k = min(max(configured_rerank_top_k, answer_top_k), len(merged))
                 rerank_candidates = merged[:rerank_top_k]
-                pairs = [[question, chunk.text] for chunk, score in rerank_candidates]
+                pairs = [
+                    [question, self._rerank_text_for_chunk(chunk, settings)]
+                    for chunk, _score in rerank_candidates
+                ]
                 rerank_scores = reranker.predict(pairs)
                 
                 reranked = []
@@ -404,6 +483,8 @@ class RagService:
                 reranked.sort(key=lambda item: item[1], reverse=True)
                 merged = reranked + merged[rerank_top_k:]
                 self._log_retrieval_hits("RERANKED HITS", question, merged)
+        if timings is not None:
+            timings["rerankElapsedMs"] = int((perf_counter() - rerank_started_at) * 1000)
 
         final_hits = merged[:answer_top_k]
         self._log_retrieval_hits("FINAL CONTEXT HITS", question, final_hits)
@@ -422,6 +503,17 @@ class RagService:
         return vector_store.similarity_search_with_score(
             self._embedding_search_text(question),
             k=max(retrieval_k * 6, 24),
+        )
+
+    def _rerank_text_for_chunk(self, chunk: ChunkRecord, settings: Any) -> str:
+        if not self._is_ocr_table_chunk(chunk):
+            return chunk.text
+
+        max_chars = max(getattr(settings, "rag_table_rerank_context_chars", 800), 200)
+        return self._abbreviate(
+            chunk.text,
+            max_chars,
+            preserve_newlines=True,
         )
 
     def _lexical_retrieve(
@@ -1021,7 +1113,24 @@ class RagService:
         chunk = store.get_chunk(source.chunkId)
         if chunk is None:
             return source.excerpt
+        if self._is_ocr_table_chunk(chunk):
+            return self._ocr_table_context_for_llm(chunk)
         return self._chunk_context_for_llm(chunk)
+
+    @staticmethod
+    def _is_ocr_table_chunk(chunk: ChunkRecord) -> bool:
+        return OCR_TABLE_PREFIX in chunk.text
+
+    def _ocr_table_context_for_llm(self, chunk: ChunkRecord) -> str:
+        context = chunk.text
+        if chunk.section_title and not context.startswith("Section:"):
+            context = f"Section: {chunk.section_title}\n\n{context}"
+
+        return self._abbreviate(
+            context,
+            OCR_TABLE_LLM_CONTEXT_CHARS,
+            preserve_newlines=True,
+        )
 
     def _chunk_context_for_llm(self, chunk: ChunkRecord) -> str:
         chunk_text = chunk.text

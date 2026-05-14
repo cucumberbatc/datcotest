@@ -156,6 +156,7 @@ def _extract_alignment_paragraphs(
 
     ocr_result = OcrPageResult(
         items=[],
+        table_paragraphs=[],
         row_paragraphs=[],
         raw_block_paragraphs=[],
         raw_payloads=[],
@@ -166,6 +167,7 @@ def _extract_alignment_paragraphs(
         extracted_paragraphs = _merge_short_paragraphs(
             _merge_paragraph_sources(
                 native_paragraphs,
+                ocr_result.table_paragraphs,
                 ocr_result.row_paragraphs,
                 ocr_result.raw_block_paragraphs,
             )

@@ -1,0 +1,61 @@
+import unittest
+
+from app.pdf_pipeline import (
+    OCR_TABLE_PREFIX,
+    ExtractedParagraph,
+    OcrTextItem,
+    _merge_short_paragraphs,
+    _ocr_items_to_table_paragraphs,
+)
+
+
+class OcrTableParagraphTests(unittest.TestCase):
+    def test_reconstructs_table_text_from_ocr_boxes(self) -> None:
+        items = [
+            OcrTextItem("Power", 0.99, (20, 20, 80, 40)),
+            OcrTextItem("Modules", 0.99, (120, 20, 180, 40)),
+            OcrTextItem("Flux", 0.99, (220, 20, 280, 40)),
+            OcrTextItem("50W", 0.99, (20, 60, 80, 80)),
+            OcrTextItem("2", 0.99, (120, 60, 180, 80)),
+            OcrTextItem("5700", 0.99, (220, 60, 280, 80)),
+            OcrTextItem("100W", 0.99, (20, 100, 80, 120)),
+            OcrTextItem("4", 0.99, (120, 100, 180, 120)),
+            OcrTextItem("11400", 0.99, (220, 100, 280, 120)),
+        ]
+
+        paragraphs = _ocr_items_to_table_paragraphs(items, zoom=2.0)
+
+        self.assertEqual(1, len(paragraphs))
+        self.assertTrue(paragraphs[0].text.startswith(OCR_TABLE_PREFIX))
+        self.assertIn("Power | Modules | Flux", paragraphs[0].text)
+        self.assertIn("50W | 2 | 5700", paragraphs[0].text)
+        self.assertIn("100W | 4 | 11400", paragraphs[0].text)
+
+    def test_skips_single_column_ocr_text(self) -> None:
+        items = [
+            OcrTextItem("First line", 0.99, (20, 20, 180, 40)),
+            OcrTextItem("Second line", 0.99, (20, 60, 180, 80)),
+        ]
+
+        paragraphs = _ocr_items_to_table_paragraphs(items, zoom=2.0)
+
+        self.assertEqual([], paragraphs)
+
+    def test_table_paragraph_is_not_merged_with_neighbor_text(self) -> None:
+        table = ExtractedParagraph(
+            text=f"{OCR_TABLE_PREFIX}\nA | B\n1 | 2",
+            rects=[(0, 0, 10, 10)],
+        )
+        other = ExtractedParagraph(
+            text="short",
+            rects=[(0, 20, 10, 30)],
+        )
+
+        paragraphs = _merge_short_paragraphs([table, other])
+
+        self.assertEqual(table.text, paragraphs[0].text)
+        self.assertEqual("short", paragraphs[1].text)
+
+
+if __name__ == "__main__":
+    unittest.main()

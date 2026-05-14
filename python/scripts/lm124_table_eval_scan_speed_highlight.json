@@ -1,0 +1,583 @@
+[
+  {
+    "id": "lm_order_lm124n_temp",
+    "question": "LM124N의 온도 범위는?",
+    "qtype": "table_ordering",
+    "expected_pages": [
+      1
+    ],
+    "expected_keywords": [
+      "LM124N",
+      "-55",
+      "+125"
+    ],
+    "retrieved_pages": [],
+    "retrieved_chunks": [],
+    "answer": "LM124N의 온도 범위는 -55°C to +125°C입니다.",
+    "source_pages": [
+      1,
+      1
+    ],
+    "source_chunks": [
+      "330ee4bdbae04513b1141cf9f27804e7-p1-c7",
+      "330ee4bdbae04513b1141cf9f27804e7-p1-c4"
+    ],
+    "source_document_ids": [
+      "330ee4bdbae04513b1141cf9f27804e7",
+      "330ee4bdbae04513b1141cf9f27804e7"
+    ],
+    "source_file_names": [
+      "LM124_image_only_no_text.pdf",
+      "LM124_image_only_no_text.pdf"
+    ],
+    "recall_top3": null,
+    "recall_top5": null,
+    "answer_keyword_hit": true,
+    "source_page_hit": true,
+    "source_keyword_hit": true,
+    "highlight_rects_present": true,
+    "source_count": 2,
+    "source_text_chars": 1221,
+    "server_elapsed_ms": 11508,
+    "retrieval_elapsed_ms": 10554,
+    "query_expansion_elapsed_ms": 1507,
+    "vector_search_elapsed_ms": 661,
+    "page_selection_elapsed_ms": 1095,
+    "lexical_search_elapsed_ms": 164,
+    "retrieval_merge_elapsed_ms": 0,
+    "rerank_elapsed_ms": 7123,
+    "context_build_elapsed_ms": 6,
+    "llm_elapsed_ms": 940,
+    "context_chars": 4399,
+    "context_block_count": 4,
+    "elapsed_ms": 13559,
+    "debug_elapsed_ms": null,
+    "ask_elapsed_ms": 13559,
+    "status": "ok",
+    "error": ""
+  },
+  {
+    "id": "lm_order_lm224d_package",
+    "question": "LM224D의 패키지 설명은?",
+    "qtype": "table_ordering",
+    "expected_pages": [
+      1
+    ],
+    "expected_keywords": [
+      "LM224D",
+      "14-Pin Plastic Small Outline",
+      "SO"
+    ],
+    "retrieved_pages": [],
+    "retrieved_chunks": [],
+    "answer": "LM224D는 14핀 플라스틱 소형 외형(SO, Small Outline) 패키지입니다. 문서의 주문 정보 표에는 LM224D의 패키지 설명이 \"14-Pin Plastic Small Outline (SO) Package\"로, 도면 번호는 SOT108-1로 표시되어 있습니다.",
+    "source_pages": [
+      1,
+      1
+    ],
+    "source_chunks": [
+      "330ee4bdbae04513b1141cf9f27804e7-p1-c7",
+      "330ee4bdbae04513b1141cf9f27804e7-p1-c4"
+    ],
+    "source_document_ids": [
+      "330ee4bdbae04513b1141cf9f27804e7",
+      "330ee4bdbae04513b1141cf9f27804e7"
+    ],
+    "source_file_names": [
+      "LM124_image_only_no_text.pdf",
+      "LM124_image_only_no_text.pdf"
+    ],
+    "recall_top3": null,
+    "recall_top5": null,
+    "answer_keyword_hit": true,
+    "source_page_hit": true,
+    "source_keyword_hit": true,
+    "highlight_rects_present": true,
+    "source_count": 2,
+    "source_text_chars": 1221,
+    "server_elapsed_ms": 9090,
+    "retrieval_elapsed_ms": 7479,
+    "query_expansion_elapsed_ms": 1556,
+    "vector_search_elapsed_ms": 3890,
+    "page_selection_elapsed_ms": 71,
+    "lexical_search_elapsed_ms": 170,
+    "retrieval_merge_elapsed_ms": 0,
+    "rerank_elapsed_ms": 1788,
+    "context_build_elapsed_ms": 5,
+    "llm_elapsed_ms": 1597,
+    "context_chars": 4399,
+    "context_block_count": 4,
+    "elapsed_ms": 11120,
+    "debug_elapsed_ms": null,
+    "ask_elapsed_ms": 11120,
+    "status": "ok",
+    "error": ""
+  },
+  {
+    "id": "lm_abs_supply_voltage",
+    "question": "Absolute maximum ratings에서 supply voltage VCC의 rating은?",
+    "qtype": "table_rating",
+    "expected_pages": [
+      2
+    ],
+    "expected_keywords": [
+      "VCC",
+      "32",
+      "±16"
+    ],
+    "retrieved_pages": [],
+    "retrieved_chunks": [],
+    "answer": "Absolute maximum ratings에서 supply voltage VCC의 정격은 32V 또는 ±16V입니다.",
+    "source_pages": [
+      2,
+      2
+    ],
+    "source_chunks": [
+      "330ee4bdbae04513b1141cf9f27804e7-p2-c1",
+      "330ee4bdbae04513b1141cf9f27804e7-p2-c2"
+    ],
+    "source_document_ids": [
+      "330ee4bdbae04513b1141cf9f27804e7",
+      "330ee4bdbae04513b1141cf9f27804e7"
+    ],
+    "source_file_names": [
+      "LM124_image_only_no_text.pdf",
+      "LM124_image_only_no_text.pdf"
+    ],
+    "recall_top3": null,
+    "recall_top5": null,
+    "answer_keyword_hit": true,
+    "source_page_hit": true,
+    "source_keyword_hit": true,
+    "highlight_rects_present": true,
+    "source_count": 2,
+    "source_text_chars": 2422,
+    "server_elapsed_ms": 5699,
+    "retrieval_elapsed_ms": 4327,
+    "query_expansion_elapsed_ms": 1293,
+    "vector_search_elapsed_ms": 691,
+    "page_selection_elapsed_ms": 72,
+    "lexical_search_elapsed_ms": 173,
+    "retrieval_merge_elapsed_ms": 0,
+    "rerank_elapsed_ms": 2095,
+    "context_build_elapsed_ms": 7,
+    "llm_elapsed_ms": 1354,
+    "context_chars": 5418,
+    "context_block_count": 4,
+    "elapsed_ms": 7755,
+    "debug_elapsed_ms": null,
+    "ask_elapsed_ms": 7755,
+    "status": "ok",
+    "error": ""
+  },
+  {
+    "id": "lm_abs_lm2902_temp",
+    "question": "LM2902의 operating ambient temperature range는?",
+    "qtype": "table_rating",
+    "expected_pages": [
+      2
+    ],
+    "expected_keywords": [
+      "LM2902",
+      "-40",
+      "+125"
+    ],
+    "retrieved_pages": [],
+    "retrieved_chunks": [],
+    "answer": "LM2902의 operating ambient temperature range는 -40°C to +125°C입니다.",
+    "source_pages": [
+      2,
+      2
+    ],
+    "source_chunks": [
+      "330ee4bdbae04513b1141cf9f27804e7-p2-c2",
+      "330ee4bdbae04513b1141cf9f27804e7-p2-c5"
+    ],
+    "source_document_ids": [
+      "330ee4bdbae04513b1141cf9f27804e7",
+      "330ee4bdbae04513b1141cf9f27804e7"
+    ],
+    "source_file_names": [
+      "LM124_image_only_no_text.pdf",
+      "LM124_image_only_no_text.pdf"
+    ],
+    "recall_top3": null,
+    "recall_top5": null,
+    "answer_keyword_hit": true,
+    "source_page_hit": true,
+    "source_keyword_hit": true,
+    "highlight_rects_present": true,
+    "source_count": 2,
+    "source_text_chars": 1036,
+    "server_elapsed_ms": 5363,
+    "retrieval_elapsed_ms": 4302,
+    "query_expansion_elapsed_ms": 1505,
+    "vector_search_elapsed_ms": 564,
+    "page_selection_elapsed_ms": 73,
+    "lexical_search_elapsed_ms": 172,
+    "retrieval_merge_elapsed_ms": 0,
+    "rerank_elapsed_ms": 1983,
+    "context_build_elapsed_ms": 4,
+    "llm_elapsed_ms": 1050,
+    "context_chars": 4224,
+    "context_block_count": 4,
+    "elapsed_ms": 7384,
+    "debug_elapsed_ms": null,
+    "ask_elapsed_ms": 7384,
+    "status": "ok",
+    "error": ""
+  },
+  {
+    "id": "lm_abs_storage_temp",
+    "question": "Storage temperature range는 얼마야?",
+    "qtype": "table_rating",
+    "expected_pages": [
+      2
+    ],
+    "expected_keywords": [
+      "TSTG",
+      "-65",
+      "+150"
+    ],
+    "retrieved_pages": [],
+    "retrieved_chunks": [],
+    "answer": "Storage temperature range는 -65 to +150 ºC입니다.",
+    "source_pages": [
+      2,
+      2,
+      2
+    ],
+    "source_chunks": [
+      "330ee4bdbae04513b1141cf9f27804e7-p2-c5",
+      "330ee4bdbae04513b1141cf9f27804e7-p2-c2",
+      "330ee4bdbae04513b1141cf9f27804e7-p2-c1"
+    ],
+    "source_document_ids": [
+      "330ee4bdbae04513b1141cf9f27804e7",
+      "330ee4bdbae04513b1141cf9f27804e7",
+      "330ee4bdbae04513b1141cf9f27804e7"
+    ],
+    "source_file_names": [
+      "LM124_image_only_no_text.pdf",
+      "LM124_image_only_no_text.pdf",
+      "LM124_image_only_no_text.pdf"
+    ],
+    "recall_top3": null,
+    "recall_top5": null,
+    "answer_keyword_hit": true,
+    "source_page_hit": true,
+    "source_keyword_hit": true,
+    "highlight_rects_present": true,
+    "source_count": 3,
+    "source_text_chars": 2789,
+    "server_elapsed_ms": 5007,
+    "retrieval_elapsed_ms": 3913,
+    "query_expansion_elapsed_ms": 1040,
+    "vector_search_elapsed_ms": 650,
+    "page_selection_elapsed_ms": 74,
+    "lexical_search_elapsed_ms": 169,
+    "retrieval_merge_elapsed_ms": 0,
+    "rerank_elapsed_ms": 1976,
+    "context_build_elapsed_ms": 5,
+    "llm_elapsed_ms": 1080,
+    "context_chars": 4962,
+    "context_block_count": 4,
+    "elapsed_ms": 7062,
+    "debug_elapsed_ms": null,
+    "ask_elapsed_ms": 7062,
+    "status": "ok",
+    "error": ""
+  },
+  {
+    "id": "lm_dc_offset_voltage_lm324_typ",
+    "question": "DC Electrical Characteristics에서 LM324/SA534/LM2902의 offset voltage typ 값은?",
+    "qtype": "table_electrical",
+    "expected_pages": [
+      3
+    ],
+    "expected_keywords": [
+      "Offset voltage",
+      "±2",
+      "mV"
+    ],
+    "retrieved_pages": [],
+    "retrieved_chunks": [],
+    "answer": "DC Electrical Characteristics 표에서 LM324/SA534/LM2902의 offset voltage(Vos) typ 값은 7 mV입니다.",
+    "source_pages": [
+      3,
+      3
+    ],
+    "source_chunks": [
+      "330ee4bdbae04513b1141cf9f27804e7-p3-c1",
+      "330ee4bdbae04513b1141cf9f27804e7-p3-c2"
+    ],
+    "source_document_ids": [
+      "330ee4bdbae04513b1141cf9f27804e7",
+      "330ee4bdbae04513b1141cf9f27804e7"
+    ],
+    "source_file_names": [
+      "LM124_image_only_no_text.pdf",
+      "LM124_image_only_no_text.pdf"
+    ],
+    "recall_top3": null,
+    "recall_top5": null,
+    "answer_keyword_hit": true,
+    "source_page_hit": true,
+    "source_keyword_hit": true,
+    "highlight_rects_present": true,
+    "source_count": 2,
+    "source_text_chars": 2981,
+    "server_elapsed_ms": 6437,
+    "retrieval_elapsed_ms": 5178,
+    "query_expansion_elapsed_ms": 1591,
+    "vector_search_elapsed_ms": 933,
+    "page_selection_elapsed_ms": 75,
+    "lexical_search_elapsed_ms": 182,
+    "retrieval_merge_elapsed_ms": 0,
+    "rerank_elapsed_ms": 2392,
+    "context_build_elapsed_ms": 4,
+    "llm_elapsed_ms": 1242,
+    "context_chars": 5332,
+    "context_block_count": 4,
+    "elapsed_ms": 8480,
+    "debug_elapsed_ms": null,
+    "ask_elapsed_ms": 8480,
+    "status": "ok",
+    "error": ""
+  },
+  {
+    "id": "lm_dc_gbw",
+    "question": "Unity gain bandwidth 값은 얼마야?",
+    "qtype": "table_electrical",
+    "expected_pages": [
+      3,
+      4
+    ],
+    "expected_keywords": [
+      "Unity gain bandwidth",
+      "1",
+      "MHz"
+    ],
+    "retrieved_pages": [],
+    "retrieved_chunks": [],
+    "answer": "Unity gain bandwidth는 1 MHz입니다.",
+    "source_pages": [
+      3,
+      1
+    ],
+    "source_chunks": [
+      "330ee4bdbae04513b1141cf9f27804e7-p3-c4",
+      "330ee4bdbae04513b1141cf9f27804e7-p1-c1"
+    ],
+    "source_document_ids": [
+      "330ee4bdbae04513b1141cf9f27804e7",
+      "330ee4bdbae04513b1141cf9f27804e7"
+    ],
+    "source_file_names": [
+      "LM124_image_only_no_text.pdf",
+      "LM124_image_only_no_text.pdf"
+    ],
+    "recall_top3": null,
+    "recall_top5": null,
+    "answer_keyword_hit": true,
+    "source_page_hit": true,
+    "source_keyword_hit": true,
+    "highlight_rects_present": true,
+    "source_count": 2,
+    "source_text_chars": 2784,
+    "server_elapsed_ms": 5212,
+    "retrieval_elapsed_ms": 4367,
+    "query_expansion_elapsed_ms": 1214,
+    "vector_search_elapsed_ms": 1085,
+    "page_selection_elapsed_ms": 76,
+    "lexical_search_elapsed_ms": 178,
+    "retrieval_merge_elapsed_ms": 0,
+    "rerank_elapsed_ms": 1811,
+    "context_build_elapsed_ms": 6,
+    "llm_elapsed_ms": 829,
+    "context_chars": 4227,
+    "context_block_count": 4,
+    "elapsed_ms": 7255,
+    "debug_elapsed_ms": null,
+    "ask_elapsed_ms": 7255,
+    "status": "ok",
+    "error": ""
+  },
+  {
+    "id": "lm_dc_slew_rate",
+    "question": "Slew rate 값은 얼마야?",
+    "qtype": "table_electrical",
+    "expected_pages": [
+      3,
+      4
+    ],
+    "expected_keywords": [
+      "Slew rate",
+      "0.3",
+      "V/µs"
+    ],
+    "retrieved_pages": [],
+    "retrieved_chunks": [],
+    "answer": "Slew rate는 0.3 V/µs입니다.",
+    "source_pages": [
+      3,
+      4
+    ],
+    "source_chunks": [
+      "330ee4bdbae04513b1141cf9f27804e7-p3-c4",
+      "330ee4bdbae04513b1141cf9f27804e7-p4-c4"
+    ],
+    "source_document_ids": [
+      "330ee4bdbae04513b1141cf9f27804e7",
+      "330ee4bdbae04513b1141cf9f27804e7"
+    ],
+    "source_file_names": [
+      "LM124_image_only_no_text.pdf",
+      "LM124_image_only_no_text.pdf"
+    ],
+    "recall_top3": null,
+    "recall_top5": null,
+    "answer_keyword_hit": true,
+    "source_page_hit": true,
+    "source_keyword_hit": true,
+    "highlight_rects_present": true,
+    "source_count": 2,
+    "source_text_chars": 943,
+    "server_elapsed_ms": 4897,
+    "retrieval_elapsed_ms": 3846,
+    "query_expansion_elapsed_ms": 1448,
+    "vector_search_elapsed_ms": 501,
+    "page_selection_elapsed_ms": 72,
+    "lexical_search_elapsed_ms": 170,
+    "retrieval_merge_elapsed_ms": 0,
+    "rerank_elapsed_ms": 1651,
+    "context_build_elapsed_ms": 4,
+    "llm_elapsed_ms": 1039,
+    "context_chars": 4158,
+    "context_block_count": 4,
+    "elapsed_ms": 6933,
+    "debug_elapsed_ms": null,
+    "ask_elapsed_ms": 6933,
+    "status": "ok",
+    "error": ""
+  },
+  {
+    "id": "lm_dc_lm324a_input_current_max",
+    "question": "LM324A에서 input current의 max 값은?",
+    "qtype": "table_electrical",
+    "expected_pages": [
+      4
+    ],
+    "expected_keywords": [
+      "Input current",
+      "100",
+      "nA"
+    ],
+    "retrieved_pages": [],
+    "retrieved_chunks": [],
+    "answer": "LM324A의 input current 최대값은 50 mA입니다. 다만 표에는 조건이 함께 표시되어 있으며, `Input current (VIN<-0.3V)`일 때의 절대최대정격으로 제시되어 있습니다.",
+    "source_pages": [
+      2,
+      2,
+      2
+    ],
+    "source_chunks": [
+      "330ee4bdbae04513b1141cf9f27804e7-p2-c1",
+      "330ee4bdbae04513b1141cf9f27804e7-p2-c2",
+      "330ee4bdbae04513b1141cf9f27804e7-p2-c4"
+    ],
+    "source_document_ids": [
+      "330ee4bdbae04513b1141cf9f27804e7",
+      "330ee4bdbae04513b1141cf9f27804e7",
+      "330ee4bdbae04513b1141cf9f27804e7"
+    ],
+    "source_file_names": [
+      "LM124_image_only_no_text.pdf",
+      "LM124_image_only_no_text.pdf",
+      "LM124_image_only_no_text.pdf"
+    ],
+    "recall_top3": null,
+    "recall_top5": null,
+    "answer_keyword_hit": false,
+    "source_page_hit": false,
+    "source_keyword_hit": true,
+    "highlight_rects_present": true,
+    "source_count": 3,
+    "source_text_chars": 3825,
+    "server_elapsed_ms": 6201,
+    "retrieval_elapsed_ms": 4546,
+    "query_expansion_elapsed_ms": 1433,
+    "vector_search_elapsed_ms": 879,
+    "page_selection_elapsed_ms": 73,
+    "lexical_search_elapsed_ms": 175,
+    "retrieval_merge_elapsed_ms": 0,
+    "rerank_elapsed_ms": 1982,
+    "context_build_elapsed_ms": 4,
+    "llm_elapsed_ms": 1640,
+    "context_chars": 5331,
+    "context_block_count": 4,
+    "elapsed_ms": 8243,
+    "debug_elapsed_ms": null,
+    "ask_elapsed_ms": 8243,
+    "status": "ok",
+    "error": ""
+  },
+  {
+    "id": "lm_features_supply_range",
+    "question": "전원 공급 범위는 어떻게 돼?",
+    "qtype": "spec",
+    "expected_pages": [
+      1
+    ],
+    "expected_keywords": [
+      "3V",
+      "30V",
+      "±1.5",
+      "±15"
+    ],
+    "retrieved_pages": [],
+    "retrieved_chunks": [],
+    "answer": "전원 공급 범위는 단일 전원 기준 3VDC~30VDC이고, 듀얼 전원 기준 ±1.5VDC~±15VDC입니다.",
+    "source_pages": [
+      1,
+      1
+    ],
+    "source_chunks": [
+      "330ee4bdbae04513b1141cf9f27804e7-p1-c3",
+      "330ee4bdbae04513b1141cf9f27804e7-p1-c1"
+    ],
+    "source_document_ids": [
+      "330ee4bdbae04513b1141cf9f27804e7",
+      "330ee4bdbae04513b1141cf9f27804e7"
+    ],
+    "source_file_names": [
+      "LM124_image_only_no_text.pdf",
+      "LM124_image_only_no_text.pdf"
+    ],
+    "recall_top3": null,
+    "recall_top5": null,
+    "answer_keyword_hit": true,
+    "source_page_hit": true,
+    "source_keyword_hit": true,
+    "highlight_rects_present": true,
+    "source_count": 2,
+    "source_text_chars": 2571,
+    "server_elapsed_ms": 5043,
+    "retrieval_elapsed_ms": 3906,
+    "query_expansion_elapsed_ms": 1104,
+    "vector_search_elapsed_ms": 516,
+    "page_selection_elapsed_ms": 69,
+    "lexical_search_elapsed_ms": 167,
+    "retrieval_merge_elapsed_ms": 0,
+    "rerank_elapsed_ms": 2046,
+    "context_build_elapsed_ms": 0,
+    "llm_elapsed_ms": 1125,
+    "context_chars": 3367,
+    "context_block_count": 3,
+    "elapsed_ms": 7087,
+    "debug_elapsed_ms": null,
+    "ask_elapsed_ms": 7087,
+    "status": "ok",
+    "error": ""
+  }
+]

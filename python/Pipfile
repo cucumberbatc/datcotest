@@ -21,6 +21,7 @@ sentence-transformers = "*"
 torch = "*"
 llama-cloud = "*"
 paddlepaddle = "==3.2.2"
+requests = "*"
 
 [dev-packages]
 

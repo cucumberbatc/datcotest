@@ -1,0 +1,74 @@
+{
+  "cases": [
+    {
+      "id": "lm_order_lm124n_temp",
+      "question": "LM124N의 온도 범위는?",
+      "expected_pages": [1],
+      "expected_keywords": ["LM124N", "-55", "+125"],
+      "qtype": "table_ordering"
+    },
+    {
+      "id": "lm_order_lm224d_package",
+      "question": "LM224D의 패키지 설명은?",
+      "expected_pages": [1],
+      "expected_keywords": ["LM224D", "14-Pin Plastic Small Outline", "SO"],
+      "qtype": "table_ordering"
+    },
+    {
+      "id": "lm_abs_supply_voltage",
+      "question": "Absolute maximum ratings에서 supply voltage VCC의 rating은?",
+      "expected_pages": [2],
+      "expected_keywords": ["VCC", "32", "±16"],
+      "qtype": "table_rating"
+    },
+    {
+      "id": "lm_abs_lm2902_temp",
+      "question": "LM2902의 operating ambient temperature range는?",
+      "expected_pages": [2],
+      "expected_keywords": ["LM2902", "-40", "+125"],
+      "qtype": "table_rating"
+    },
+    {
+      "id": "lm_abs_storage_temp",
+      "question": "Storage temperature range는 얼마야?",
+      "expected_pages": [2],
+      "expected_keywords": ["TSTG", "-65", "+150"],
+      "qtype": "table_rating"
+    },
+    {
+      "id": "lm_dc_offset_voltage_lm324_typ",
+      "question": "DC Electrical Characteristics에서 LM324/SA534/LM2902의 offset voltage typ 값은?",
+      "expected_pages": [3],
+      "expected_keywords": ["Offset voltage", "±2", "mV"],
+      "qtype": "table_electrical"
+    },
+    {
+      "id": "lm_dc_gbw",
+      "question": "Unity gain bandwidth 값은 얼마야?",
+      "expected_pages": [3, 4],
+      "expected_keywords": ["Unity gain bandwidth", "1", "MHz"],
+      "qtype": "table_electrical"
+    },
+    {
+      "id": "lm_dc_slew_rate",
+      "question": "Slew rate 값은 얼마야?",
+      "expected_pages": [3, 4],
+      "expected_keywords": ["Slew rate", "0.3", "V/µs"],
+      "qtype": "table_electrical"
+    },
+    {
+      "id": "lm_dc_lm324a_input_current_max",
+      "question": "LM324A에서 input current의 max 값은?",
+      "expected_pages": [4],
+      "expected_keywords": ["Input current", "100", "nA"],
+      "qtype": "table_electrical"
+    },
+    {
+      "id": "lm_features_supply_range",
+      "question": "전원 공급 범위는 어떻게 돼?",
+      "expected_pages": [1],
+      "expected_keywords": ["3V", "30V", "±1.5", "±15"],
+      "qtype": "spec"
+    }
+  ]
+}

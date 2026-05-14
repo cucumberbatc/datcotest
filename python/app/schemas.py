@@ -51,6 +51,17 @@ class AskResponse(BaseModel):
     noEvidenceNote: str | None = None
     sources: list[SourceResponse]
     elapsedMs: int
+    retrievalElapsedMs: int | None = None
+    queryExpansionElapsedMs: int | None = None
+    vectorSearchElapsedMs: int | None = None
+    pageSelectionElapsedMs: int | None = None
+    lexicalSearchElapsedMs: int | None = None
+    retrievalMergeElapsedMs: int | None = None
+    rerankElapsedMs: int | None = None
+    contextBuildElapsedMs: int | None = None
+    llmElapsedMs: int | None = None
+    contextChars: int | None = None
+    contextBlockCount: int | None = None
 
 
 class PageMetadataResponse(BaseModel):
