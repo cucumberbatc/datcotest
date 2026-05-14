@@ -2,6 +2,36 @@
 
 PDF 기반 Q&A 과제 MVP
 
+``` mermaid
+flowchart TD
+    A[사용자] --> B[Frontend<br/>Next.js UI]
+
+    B --> C[PDF 업로드]
+    C --> D[Python RAG Service<br/>FastAPI]
+
+    D --> E[문서 파싱]
+    E --> F[텍스트 추출 / 좌표 추출<br/>PyMuPDF]
+    F --> G[문단 생성]
+    G --> H[RAG Chunk 생성]
+    H --> I[임베딩 생성]
+    I --> J[FAISS 인덱싱]
+
+    B --> K[질문 입력]
+    K --> L[질문 전송]
+    L --> D
+
+    D --> M[관련 Chunk 검색<br/>Hybrid Retrieval]
+    M --> N[LLM 답변 생성]
+    N --> O[근거 Source / bbox 반환]
+
+    O --> P[Frontend]
+    P --> Q[답변 표시]
+    P --> R[출처 카드 표시]
+    P --> S[하이라이트 표시]
+
+    S --> T[문서 뷰어에서 근거 확인]
+```
+
 ## 서비스
 
 - `frontend`: Next.js 3 페인 UI
