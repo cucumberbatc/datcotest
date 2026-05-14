@@ -5,11 +5,10 @@ PDF 기반 Q&A 과제 MVP
 ## 서비스
 
 - `frontend`: Next.js 3 페인 UI
-- `backend`: Spring Boot 프로토타입 API (파일 구조만 생성됨, 실행 불필요)
 - `python`: LangChain, OpenAI, FAISS, PyMuPDF를 사용한 메인 RAG 서비스
 
 ## 개발 환경
-
+- feat/frontend 브랜치에서 실행 부탁드립니다
 - Python: 3.10.x
 - Node.js: 18 이상 권장
 - Python dependency manager: Pipenv
@@ -230,7 +229,3 @@ mvn spring-boot:run
 - `LlamaParse`는 선택적으로 사용할 수 있으며, 실패 시 설정에 따라 PyMuPDF 경로로 fallback할 수 있습니다.
 - 현재 MVP에서는 `frontend`가 `python` FastAPI 서버를 직접 호출합니다.
 - `backend`는 선택 사항이며, 현재 실행하지 않아도 서비스 핵심 기능은 동작합니다.
-- `Pipfile`과 `Pipfile.lock`은 Python 의존성의 기준 파일입니다.
-- 파일 업로드, OCR, 임베딩, reranker 테스트 시에는 서버를 `--reload` 없이 실행하는 것을 권장합니다.
-
-아키텍처 참고사항은 [DESIGN.md](DESIGN.md)를 참조하세요.
